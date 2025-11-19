@@ -3,23 +3,40 @@
 import React from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/AuthProviderClient"
+import { auth } from "@/lib/firebase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { LogIn, Github } from "lucide-react"
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithGithub, loading, firebaseUser, refreshProfile } = useAuth()
+  const { signInWithGoogle, signInWithGithub, loading, firebaseUser, refreshProfile, profile } = useAuth()
   const router = useRouter()
 
   const gotoAfterAuth = async () => {
-    const p = await refreshProfile()
-    if (!p) return router.replace("/onboarding")
-    return router.replace(p.role === "teacher" ? "/teacher" : "/student")
+    // Fast path: if profile already in memory use it
+    if (profile && profile.role) return router.replace(profile.role === "teacher" ? "/teacher" : "/student")
+
+    // Otherwise try to refresh but don't wait long — race against a short timeout
+    const refreshPromise = refreshProfile()
+    const res = await Promise.race([
+      refreshPromise,
+      new Promise<null>((r) => setTimeout(() => r(null), 700)),
+    ])
+
+    if (res && (res as any).role) return router.replace((res as any).role === "teacher" ? "/teacher" : "/student")
+
+    // Fallback: optimistic default. RoleGuard will correct if needed.
+    return router.replace("/student")
   }
 
   const handleGoogle = async () => {
     try {
       await signInWithGoogle()
+      // If this is the user's first sign-in, send them to onboarding immediately.
+      const user = auth.currentUser
+      const isNew = !!(user && user.metadata && user.metadata.creationTime === user.metadata.lastSignInTime)
+      if (isNew) return router.replace("/onboarding")
+
       await gotoAfterAuth()
     } catch (err) {
       console.error(err)
@@ -29,6 +46,10 @@ export default function LoginPage() {
   const handleGithub = async () => {
     try {
       await signInWithGithub()
+      const user = auth.currentUser
+      const isNew = !!(user && user.metadata && user.metadata.creationTime === user.metadata.lastSignInTime)
+      if (isNew) return router.replace("/onboarding")
+
       await gotoAfterAuth()
     } catch (err) {
       console.error(err)
