@@ -65,14 +65,18 @@ export const FirebaseAttemptService = {
     try {
       const q = query(
         collection(db, ATTEMPTS_COLLECTION),
-        where('quizId', '==', quizId),
-        orderBy('startedAt', 'desc')
+        where('quizId', '==', quizId)
       );
       
       const querySnapshot = await getDocs(q);
       
-      return querySnapshot.docs.map(doc => 
+      const attempts = querySnapshot.docs.map(doc => 
         firestoreToAttempt(doc.id, doc.data())
+      );
+      
+      // Sort in memory instead of using orderBy (to avoid index requirement)
+      return attempts.sort((a, b) => 
+        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
       );
     } catch (error) {
       console.error('[FirebaseAttemptService] Error getting attempts by quiz:', error);
@@ -87,14 +91,18 @@ export const FirebaseAttemptService = {
     try {
       const q = query(
         collection(db, ATTEMPTS_COLLECTION),
-        where('studentId', '==', studentId),
-        orderBy('startedAt', 'desc')
+        where('studentId', '==', studentId)
       );
       
       const querySnapshot = await getDocs(q);
       
-      return querySnapshot.docs.map(doc => 
+      const attempts = querySnapshot.docs.map(doc => 
         firestoreToAttempt(doc.id, doc.data())
+      );
+      
+      // Sort in memory instead of using orderBy (to avoid index requirement)
+      return attempts.sort((a, b) => 
+        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
       );
     } catch (error) {
       console.error('[FirebaseAttemptService] Error getting attempts by student:', error);
@@ -129,8 +137,7 @@ export const FirebaseAttemptService = {
       const q = query(
         collection(db, ATTEMPTS_COLLECTION),
         where('quizId', '==', quizId),
-        where('studentId', '==', studentId),
-        orderBy('startedAt', 'desc')
+        where('studentId', '==', studentId)
       );
       
       const querySnapshot = await getDocs(q);
@@ -139,8 +146,16 @@ export const FirebaseAttemptService = {
         return null;
       }
       
-      // Return the most recent attempt
-      return firestoreToAttempt(querySnapshot.docs[0].id, querySnapshot.docs[0].data());
+      const attempts = querySnapshot.docs.map(doc => 
+        firestoreToAttempt(doc.id, doc.data())
+      );
+      
+      // Sort and return the most recent attempt
+      attempts.sort((a, b) => 
+        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+      );
+      
+      return attempts[0];
     } catch (error) {
       console.error('[FirebaseAttemptService] Error getting student attempt:', error);
       throw error;
