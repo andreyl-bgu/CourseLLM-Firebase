@@ -16,9 +16,10 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getQuizById, quizAttempts, courses } from '@/lib/mock-data';
+import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
+import { quizAttempts, courses } from '@/lib/mock-data';
 import { Quiz, QuizAttempt, QuizQuestion } from '@/lib/types';
-import { CheckCircle, XCircle, Trophy, Target, Clock, RotateCcw, Home } from 'lucide-react';
+import { CheckCircle, XCircle, Trophy, Target, Clock, RotateCcw, Home, Loader2 } from 'lucide-react';
 
 export default function QuizResultsPage() {
   const params = useParams();
@@ -28,23 +29,56 @@ export default function QuizResultsPage() {
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const foundQuiz = getQuizById(quizId);
-    setQuiz(foundQuiz || null);
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const foundQuiz = await FirebaseQuizService.getById(quizId);
+        setQuiz(foundQuiz || null);
 
-    // In production, fetch from Firebase using attemptId
-    // For now, use the last completed attempt
-    const foundAttempt = quizAttempts.find((a) => a.id === attemptId || (a.quizId === quizId && a.status === 'completed'));
-    setAttempt(foundAttempt || null);
+        // In production, fetch from Firebase using attemptId
+        // For now, use the last completed attempt from mock data
+        const foundAttempt = quizAttempts.find((a) => a.id === attemptId || (a.quizId === quizId && a.status === 'completed'));
+        setAttempt(foundAttempt || null);
+      } catch (error) {
+        console.error('Error fetching quiz results:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, [quizId, attemptId]);
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-12 w-12 text-gray-400 mb-4 animate-spin" />
+            <p className="text-gray-600 text-lg">Loading results...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!quiz || !attempt) {
     return (
       <div className="container mx-auto py-8 px-4">
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-gray-600 text-lg">Loading results...</p>
+            <XCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+            <p className="text-gray-600 text-lg">Results not found.</p>
+            <Button
+              className="mt-4"
+              onClick={() => router.push('/student/quizzes')}
+              style={{ backgroundColor: '#3F51B5' }}
+            >
+              Back to Quizzes
+            </Button>
           </CardContent>
         </Card>
       </div>

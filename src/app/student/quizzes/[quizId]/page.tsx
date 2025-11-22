@@ -26,9 +26,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getQuizById, quizAttempts, courses } from '@/lib/mock-data';
+import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
+import { quizAttempts, courses } from '@/lib/mock-data';
 import { Quiz, QuizQuestion, QuizAnswer, QuizAttempt } from '@/lib/types';
-import { ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 // Mock current student ID
@@ -40,33 +41,58 @@ export default function TakeQuizPage() {
   const quizId = params.quizId as string;
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const foundQuiz = getQuizById(quizId);
-    if (foundQuiz) {
-      setQuiz(foundQuiz);
-      
-      // Check if there's an in-progress attempt
-      const inProgressAttempt = quizAttempts.find(
-        (a) => a.quizId === quizId && a.studentId === CURRENT_STUDENT_ID && a.status === 'in-progress'
-      );
-      
-      if (inProgressAttempt) {
-        // Restore previous answers
-        const restoredAnswers: Record<string, string> = {};
-        inProgressAttempt.answers.forEach((answer) => {
-          restoredAnswers[answer.questionId] = Array.isArray(answer.studentAnswer)
-            ? answer.studentAnswer.join(', ')
-            : answer.studentAnswer;
-        });
-        setAnswers(restoredAnswers);
+    const fetchQuiz = async () => {
+      try {
+        setIsLoading(true);
+        const foundQuiz = await FirebaseQuizService.getById(quizId);
+        if (foundQuiz) {
+          setQuiz(foundQuiz);
+          
+          // Check if there's an in-progress attempt
+          const inProgressAttempt = quizAttempts.find(
+            (a) => a.quizId === quizId && a.studentId === CURRENT_STUDENT_ID && a.status === 'in-progress'
+          );
+          
+          if (inProgressAttempt) {
+            // Restore previous answers
+            const restoredAnswers: Record<string, string> = {};
+            inProgressAttempt.answers.forEach((answer) => {
+              restoredAnswers[answer.questionId] = Array.isArray(answer.studentAnswer)
+                ? answer.studentAnswer.join(', ')
+                : answer.studentAnswer;
+            });
+            setAnswers(restoredAnswers);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching quiz:', error);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+
+    fetchQuiz();
   }, [quizId]);
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-12 w-12 text-gray-400 mb-4 animate-spin" />
+            <p className="text-gray-600 text-lg">Loading quiz...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!quiz) {
     return (

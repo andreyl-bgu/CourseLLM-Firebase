@@ -17,9 +17,10 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getQuizById, quizAttempts, courses, students } from '@/lib/mock-data';
+import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
+import { quizAttempts, courses, students } from '@/lib/mock-data';
 import { Quiz, QuizAttempt } from '@/lib/types';
-import { ArrowLeft, Users, Trophy, BarChart, Target, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Users, Trophy, BarChart, Target, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export default function TeacherQuizDetailPage() {
   const params = useParams();
@@ -28,22 +29,48 @@ export default function TeacherQuizDetailPage() {
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const foundQuiz = getQuizById(quizId);
-    setQuiz(foundQuiz || null);
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const foundQuiz = await FirebaseQuizService.getById(quizId);
+        setQuiz(foundQuiz || null);
 
-    const quizAttemptsList = quizAttempts.filter(
-      (a) => a.quizId === quizId && a.status === 'completed'
-    );
-    setAttempts(quizAttemptsList);
+        const quizAttemptsList = quizAttempts.filter(
+          (a) => a.quizId === quizId && a.status === 'completed'
+        );
+        setAttempts(quizAttemptsList);
+      } catch (error) {
+        console.error('Error fetching quiz details:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, [quizId]);
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-12 w-12 text-gray-400 mb-4 animate-spin" />
+            <p className="text-gray-600 text-lg">Loading quiz details...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!quiz) {
     return (
       <div className="container mx-auto py-8 px-4">
         <Card>
           <CardContent className="py-12 text-center">
+            <XCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
             <p className="text-gray-600 text-lg">Quiz not found.</p>
             <Button
               className="mt-4"
