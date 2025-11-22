@@ -17,7 +17,8 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
-import { quizAttempts, courses } from '@/lib/mock-data';
+import { FirebaseAttemptService } from '@/lib/firebase-attempt-service';
+import { courses } from '@/lib/mock-data';
 import { Quiz, QuizAttempt, QuizQuestion } from '@/lib/types';
 import { CheckCircle, XCircle, Trophy, Target, Clock, RotateCcw, Home, Loader2 } from 'lucide-react';
 
@@ -35,12 +36,14 @@ export default function QuizResultsPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const foundQuiz = await FirebaseQuizService.getById(quizId);
+        
+        // Fetch quiz and attempt from Firebase
+        const [foundQuiz, foundAttempt] = await Promise.all([
+          FirebaseQuizService.getById(quizId),
+          FirebaseAttemptService.getById(attemptId)
+        ]);
+        
         setQuiz(foundQuiz || null);
-
-        // In production, fetch from Firebase using attemptId
-        // For now, use the last completed attempt from mock data
-        const foundAttempt = quizAttempts.find((a) => a.id === attemptId || (a.quizId === quizId && a.status === 'completed'));
         setAttempt(foundAttempt || null);
       } catch (error) {
         console.error('Error fetching quiz results:', error);

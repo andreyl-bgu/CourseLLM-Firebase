@@ -17,10 +17,21 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
 import { courses, quizAttempts } from '@/lib/mock-data';
 import { Quiz } from '@/lib/types';
-import { Plus, BarChart, Users, Trophy, BookOpen, Loader2 } from 'lucide-react';
+import { Plus, BarChart, Users, Trophy, BookOpen, Loader2, Trash2 } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 // Mock current teacher ID
 const CURRENT_TEACHER_ID = 'teacher-1';
@@ -30,26 +41,63 @@ export default function TeacherQuizzesPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [allQuizzes, setAllQuizzes] = useState<Quiz[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Get teacher's courses (mock - all courses for now)
   const teacherCourses = courses;
 
   // Fetch quizzes from Firebase
-  useEffect(() => {
-    const fetchQuizzes = async () => {
-      try {
-        setIsLoading(true);
-        const quizzes = await FirebaseQuizService.getAll();
-        setAllQuizzes(quizzes);
-      } catch (error) {
-        console.error('Error fetching quizzes:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const fetchQuizzes = async () => {
+    try {
+      setIsLoading(true);
+      const quizzes = await FirebaseQuizService.getAll();
+      setAllQuizzes(quizzes);
+    } catch (error) {
+      console.error('Error fetching quizzes:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchQuizzes();
   }, []);
+
+  // Handle delete quiz
+  const handleDeleteClick = (quiz: Quiz) => {
+    setQuizToDelete(quiz);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!quizToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      await FirebaseQuizService.delete(quizToDelete.id);
+      
+      toast({
+        title: 'Quiz Deleted',
+        description: `"${quizToDelete.title}" has been permanently deleted.`,
+      });
+
+      // Refresh the quiz list
+      await fetchQuizzes();
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
+      toast({
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete quiz. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setQuizToDelete(null);
+    }
+  };
 
   // Filter quizzes
   const teacherQuizzes = allQuizzes.filter((quiz) => {
@@ -251,6 +299,13 @@ export default function TeacherQuizzesPage() {
                         Student Results
                       </Button>
                     </Link>
+                    <Button 
+                      variant="outline" 
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleDeleteClick(quiz)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -258,6 +313,40 @@ export default function TeacherQuizzesPage() {
           })}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Quiz?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>"{quizToDelete?.title}"</strong>?
+              <br /><br />
+              This action cannot be undone. The quiz and all associated student attempts will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Quiz
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

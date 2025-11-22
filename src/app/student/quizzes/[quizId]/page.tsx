@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
+import { FirebaseAttemptService } from '@/lib/firebase-attempt-service';
 import { quizAttempts, courses } from '@/lib/mock-data';
 import { Quiz, QuizQuestion, QuizAnswer, QuizAttempt } from '@/lib/types';
 import { ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
@@ -178,34 +179,32 @@ export default function TakeQuizPage() {
       // Calculate score
       const { score, answers: quizAnswers } = calculateScore();
 
-      // Create quiz attempt (mock - in production, save to Firebase)
-      const attempt: QuizAttempt = {
-        id: `attempt-${Date.now()}`,
+      // Create quiz attempt and save to Firebase
+      const attemptData = {
         quizId: quiz.id,
         studentId: CURRENT_STUDENT_ID,
         courseId: quiz.courseId,
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        status: 'completed',
+        status: 'completed' as const,
         score,
         maxScore: quiz.totalPoints,
         answers: quizAnswers,
       };
 
-      // Mock save (in production, save to Firebase)
-      console.log('Quiz attempt:', attempt);
+      // Save to Firebase
+      const savedAttempt = await FirebaseAttemptService.create(attemptData);
 
       toast({
         title: 'Quiz Submitted!',
-        description: `You scored ${score} out of ${quiz.totalPoints} points.`,
+        description: `You scored ${score} out of ${quiz.totalPoints} points (${Math.round((score / quiz.totalPoints) * 100)}%).`,
       });
 
       // Navigate to results page
-      router.push(`/student/quizzes/${quiz.id}/results/${attempt.id}`);
+      router.push(`/student/quizzes/${quiz.id}/results/${savedAttempt.id}`);
     } catch (error) {
+      console.error('Error submitting quiz:', error);
       toast({
         title: 'Submission Failed',
-        description: 'There was an error submitting your quiz. Please try again.',
+        description: error instanceof Error ? error.message : 'There was an error submitting your quiz. Please try again.',
         variant: 'destructive',
       });
     } finally {
