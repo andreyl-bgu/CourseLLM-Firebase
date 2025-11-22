@@ -1,6 +1,7 @@
 // Firebase configuration
 import { initializeApp, getApps } from 'firebase/app';
 import { getAnalytics } from 'firebase/analytics';
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,8 +16,11 @@ const firebaseConfig = {
 // Initialize Firebase (avoid reinitializing if already initialized)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
+// Initialize Firestore
+const db = getFirestore(app);
+
 // Initialize Analytics (only in browser)
 const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
-export { app, analytics };
+export { app, db, analytics };
 

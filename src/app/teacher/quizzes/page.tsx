@@ -10,16 +10,17 @@
  * - View student attempts
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { quizzes, courses, quizAttempts } from '@/lib/mock-data';
+import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
+import { courses, quizAttempts } from '@/lib/mock-data';
 import { Quiz } from '@/lib/types';
-import { Plus, BarChart, Users, Trophy, BookOpen } from 'lucide-react';
+import { Plus, BarChart, Users, Trophy, BookOpen, Loader2 } from 'lucide-react';
 
 // Mock current teacher ID
 const CURRENT_TEACHER_ID = 'teacher-1';
@@ -27,12 +28,31 @@ const CURRENT_TEACHER_ID = 'teacher-1';
 export default function TeacherQuizzesPage() {
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
+  const [allQuizzes, setAllQuizzes] = useState<Quiz[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Get teacher's courses (mock - all courses for now)
   const teacherCourses = courses;
 
+  // Fetch quizzes from Firebase
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      try {
+        setIsLoading(true);
+        const quizzes = await FirebaseQuizService.getAll();
+        setAllQuizzes(quizzes);
+      } catch (error) {
+        console.error('Error fetching quizzes:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchQuizzes();
+  }, []);
+
   // Filter quizzes
-  const teacherQuizzes = quizzes.filter((quiz) => {
+  const teacherQuizzes = allQuizzes.filter((quiz) => {
     if (quiz.createdBy !== CURRENT_TEACHER_ID) return false;
     if (selectedCourse !== 'all' && quiz.courseId !== selectedCourse) return false;
     if (selectedDifficulty !== 'all' && quiz.difficulty !== selectedDifficulty) return false;
@@ -128,7 +148,14 @@ export default function TeacherQuizzesPage() {
       </div>
 
       {/* Quiz List */}
-      {teacherQuizzes.length === 0 ? (
+      {isLoading ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-12 w-12 text-gray-400 mb-4 animate-spin" />
+            <p className="text-gray-600 text-lg">Loading quizzes...</p>
+          </CardContent>
+        </Card>
+      ) : teacherQuizzes.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />

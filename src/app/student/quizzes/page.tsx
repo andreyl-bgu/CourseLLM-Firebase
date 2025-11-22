@@ -7,16 +7,17 @@
  * Students can filter by course, difficulty, and completion status.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { quizzes, courses, quizAttempts } from '@/lib/mock-data';
+import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
+import { courses, quizAttempts } from '@/lib/mock-data';
 import { Quiz, QuizAttempt } from '@/lib/types';
-import { BookOpen, Clock, Target, Trophy } from 'lucide-react';
+import { BookOpen, Clock, Target, Trophy, Loader2 } from 'lucide-react';
 
 // Mock current student ID (in production, get from auth)
 const CURRENT_STUDENT_ID = 'student-1';
@@ -25,6 +26,25 @@ export default function StudentQuizzesPage() {
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch quizzes from Firebase
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      try {
+        setIsLoading(true);
+        const allQuizzes = await FirebaseQuizService.getAll();
+        setQuizzes(allQuizzes);
+      } catch (error) {
+        console.error('Error fetching quizzes:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchQuizzes();
+  }, []);
 
   // Get student's quiz attempts
   const studentAttempts = quizAttempts.filter(
@@ -139,7 +159,14 @@ export default function StudentQuizzesPage() {
       </div>
 
       {/* Quiz List */}
-      {filteredQuizzes.length === 0 ? (
+      {isLoading ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-12 w-12 text-gray-400 mb-4 animate-spin" />
+            <p className="text-gray-600 text-lg">Loading quizzes...</p>
+          </CardContent>
+        </Card>
+      ) : filteredQuizzes.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />

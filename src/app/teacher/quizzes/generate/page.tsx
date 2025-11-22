@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { courses } from '@/lib/mock-data';
+import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
 import { Quiz, QuizQuestion } from '@/lib/types';
 import { Sparkles, Loader2, CheckCircle, AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -82,21 +83,28 @@ export default function GenerateQuizPage() {
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
+      // Request extra questions to account for validation filtering
+      // Request 20% more than needed to ensure we get the desired number
+      const requestedQuestions = Math.ceil(numberOfQuestions * 1.2);
+      
       // Call AI flow to generate quiz
       const result = await generateQuiz({
         courseContent,
         learningObjectives,
-        numberOfQuestions,
+        numberOfQuestions: requestedQuestions,
         difficulty,
         topics: topicList.length > 0 ? topicList : undefined,
       });
+      
+      // Trim to requested number if we got more
+      const trimmedQuestions = result.questions.slice(0, numberOfQuestions);
 
-      setGeneratedQuestions(result.questions);
+      setGeneratedQuestions(trimmedQuestions);
       setShowPreview(true);
 
       toast({
         title: 'Quiz Generated!',
-        description: `Successfully generated ${result.questions.length} questions.`,
+        description: `Successfully generated ${trimmedQuestions.length} questions.`,
       });
     } catch (error) {
       console.error('Quiz generation error:', error);
@@ -128,34 +136,33 @@ export default function GenerateQuizPage() {
       // Extract unique topics
       const uniqueTopics = [...new Set(generatedQuestions.map((q) => q.topic))];
 
-      // Create quiz object
-      const quiz: Quiz = {
-        id: `quiz-${Date.now()}`,
+      // Create quiz object (without id and createdAt - Firebase will generate these)
+      const quizData = {
         courseId: selectedCourse,
         title: quizTitle,
         description: quizDescription,
         questions: generatedQuestions,
         createdBy: CURRENT_TEACHER_ID,
-        createdAt: new Date().toISOString(),
         totalPoints,
         difficulty,
         topics: uniqueTopics,
       };
 
-      // Mock save (in production, save to Firebase)
-      console.log('Saving quiz:', quiz);
+      // Save quiz to Firebase
+      const savedQuiz = await FirebaseQuizService.add(quizData);
 
       toast({
         title: 'Quiz Saved!',
-        description: 'Your quiz has been created successfully.',
+        description: `Your quiz "${savedQuiz.title}" has been created with ${savedQuiz.questions.length} questions.`,
       });
 
       // Redirect to quiz management page
       router.push('/teacher/quizzes');
     } catch (error) {
+      console.error('Error saving quiz:', error);
       toast({
         title: 'Save Failed',
-        description: 'Failed to save quiz. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to save quiz. Please try again.',
         variant: 'destructive',
       });
     }
