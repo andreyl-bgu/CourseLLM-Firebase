@@ -37,6 +37,20 @@ export const useAuth = () => {
   return ctx;
 };
 
+// Check for test auth bypass via localStorage (set by test/signin page)
+function getTestAuth(): { uid: string; role: "student" | "teacher" } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const testAuth = localStorage.getItem('__test_auth__');
+    if (testAuth) {
+      return JSON.parse(testAuth);
+    }
+  } catch {
+    // Ignore parsing errors
+  }
+  return null;
+}
+
 export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -44,6 +58,32 @@ export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ ch
   const [onboardingRequired, setOnboardingRequired] = useState(false);
 
   useEffect(() => {
+    // Check for test auth bypass first
+    const testAuth = getTestAuth();
+    if (testAuth) {
+      // Create a fake user and profile for testing
+      const fakeUser = {
+        uid: testAuth.uid,
+        email: `${testAuth.uid}@example.test`,
+        displayName: testAuth.uid,
+      } as unknown as FirebaseUser;
+      
+      const fakeProfile: Profile = {
+        uid: testAuth.uid,
+        email: `${testAuth.uid}@example.test`,
+        displayName: testAuth.uid,
+        role: testAuth.role,
+        department: "Test Department",
+        courses: ["TEST101"],
+      };
+      
+      setFirebaseUser(fakeUser);
+      setProfile(fakeProfile);
+      setOnboardingRequired(false);
+      setLoading(false);
+      return;
+    }
+    
     const unsub = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
       setFirebaseUser(user);

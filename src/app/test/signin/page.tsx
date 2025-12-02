@@ -1,35 +1,38 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { signInWithCustomToken } from "firebase/auth"
-import { auth } from "@/lib/firebase"
 
 export default function TestSigninPage() {
   const router = useRouter()
+  const [status, setStatus] = useState("Signing in test user…")
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const token = params.get("token")
-    if (!token) {
-      router.replace("/login")
+    const uid = params.get("uid")
+    const role = params.get("role") as "student" | "teacher" | null
+    const redirectTo = params.get("redirect")
+    
+    if (!uid || !role) {
+      setStatus("Missing uid or role parameter")
+      setTimeout(() => router.replace("/login"), 2000)
       return
     }
 
-    async function run(token: string) {
-      try {
-        await signInWithCustomToken(auth, token)
-        // After signing in, navigate to a neutral page so the app's AuthRedirector
-        // can inspect the profile/onboarding state and forward to the correct
-        // dashboard (or onboarding). We use /login as a neutral entry point.
-        router.replace('/login')
-      } catch (e) {
-        console.error("test sign-in failed", e)
-        router.replace("/login")
-      }
-    }
-    run(token)
+    // Set test auth in localStorage - this will be picked up by AuthProviderClient
+    const testAuth = { uid, role }
+    localStorage.setItem('__test_auth__', JSON.stringify(testAuth))
+    
+    setStatus(`Test auth set for ${uid} (${role}), redirecting...`)
+    
+    // Redirect to the appropriate page
+    const target = redirectTo || (role === "teacher" ? "/teacher" : "/student")
+    
+    // Small delay to ensure localStorage is set before redirect
+    setTimeout(() => {
+      router.replace(target)
+    }, 100)
   }, [router])
 
-  return <div className="p-6">Signing in test user…</div>
+  return <div className="p-6">{status}</div>
 }
