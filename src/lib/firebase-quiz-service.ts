@@ -256,7 +256,6 @@ export const FirebaseQuizService = {
         questionsCount: quiz.questions?.length || 0,
         isServer,
         hasDb: !!db,
-        hasAdminDb: !!adminDb,
       });
       // #endregion
       
