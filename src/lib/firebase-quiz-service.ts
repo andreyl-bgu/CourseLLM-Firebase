@@ -121,8 +121,33 @@ export const FirebaseQuizService = {
    */
   async getById(id: string): Promise<Quiz | null> {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:122',message:'getById called',data:{id,isServer},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      if (isServer) {
+        // Server-side: use Admin SDK
+        const adminDbInstance = getAdminFirestore();
+        const docSnap = await adminDbInstance.collection(QUIZZES_COLLECTION).doc(id).get();
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:128',message:'Admin SDK getById result',data:{id,exists:docSnap.exists},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        if (!docSnap.exists) {
+          return null;
+        }
+        
+        return firestoreToQuiz(docSnap.id, docSnap.data());
+      }
+      
+      // Client-side: use client SDK
       const docRef = doc(db, QUIZZES_COLLECTION, id);
       const docSnap = await getDoc(docRef);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:140',message:'Client SDK getById result',data:{id,exists:docSnap.exists()},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       
       if (!docSnap.exists()) {
         return null;
@@ -130,6 +155,9 @@ export const FirebaseQuizService = {
       
       return firestoreToQuiz(docSnap.id, docSnap.data());
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:150',message:'getById error',data:{id,isServer,errorMessage:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       console.error('[FirebaseQuizService] Error getting quiz by ID:', error);
       throw error;
     }
@@ -294,12 +322,30 @@ export const FirebaseQuizService = {
    */
   async update(id: string, updates: Partial<Quiz>): Promise<Quiz> {
     try {
-      const docRef = doc(db, QUIZZES_COLLECTION, id);
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:295',message:'update called',data:{id,isServer},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       
       // Remove id and createdAt from updates
       const { id: _, createdAt, ...updateData } = updates as any;
       
-      await updateDoc(docRef, updateData);
+      if (isServer) {
+        // Server-side: use Admin SDK
+        const adminDbInstance = getAdminFirestore();
+        await adminDbInstance.collection(QUIZZES_COLLECTION).doc(id).update(updateData);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:304',message:'Admin SDK update completed',data:{id},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+      } else {
+        // Client-side: use client SDK
+        const docRef = doc(db, QUIZZES_COLLECTION, id);
+        await updateDoc(docRef, updateData);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:311',message:'Client SDK update completed',data:{id},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+      }
       
       console.log(`[FirebaseQuizService] Updated quiz: ${id}`);
       
@@ -311,6 +357,9 @@ export const FirebaseQuizService = {
       
       return updated;
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:327',message:'update error',data:{id,isServer,errorMessage:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       console.error('[FirebaseQuizService] Error updating quiz:', error);
       throw error;
     }
@@ -321,11 +370,33 @@ export const FirebaseQuizService = {
    */
   async delete(id: string): Promise<void> {
     try {
-      const docRef = doc(db, QUIZZES_COLLECTION, id);
-      await deleteDoc(docRef);
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:322',message:'delete called',data:{id,isServer},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      if (isServer) {
+        // Server-side: use Admin SDK
+        const adminDbInstance = getAdminFirestore();
+        await adminDbInstance.collection(QUIZZES_COLLECTION).doc(id).delete();
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:330',message:'Admin SDK delete completed',data:{id},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+      } else {
+        // Client-side: use client SDK
+        const docRef = doc(db, QUIZZES_COLLECTION, id);
+        await deleteDoc(docRef);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:336',message:'Client SDK delete completed',data:{id},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+      }
       
       console.log(`[FirebaseQuizService] Deleted quiz: ${id}`);
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:344',message:'delete error',data:{id,isServer,errorMessage:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       console.error('[FirebaseQuizService] Error deleting quiz:', error);
       throw error;
     }
