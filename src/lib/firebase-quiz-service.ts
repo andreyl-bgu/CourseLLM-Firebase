@@ -18,7 +18,12 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { adminDb } from './firebase-admin';
+import admin from 'firebase-admin';
 import { Quiz } from './types';
+
+// Detect if we're running on server (Node.js) or client (browser)
+const isServer = typeof window === 'undefined';
 
 const QUIZZES_COLLECTION = 'quizzes';
 
@@ -38,7 +43,14 @@ function timestampToISO(timestamp: any): string {
 /**
  * Convert Quiz to Firestore format
  */
-function quizToFirestore(quiz: Omit<Quiz, 'id'>): any {
+function quizToFirestore(quiz: Omit<Quiz, 'id'>, useAdminSdk = false): any {
+  if (useAdminSdk) {
+    // For Admin SDK, we'll set timestamp separately
+    return {
+      ...quiz,
+    };
+  }
+  // For client SDK, use serverTimestamp()
   return {
     ...quiz,
     createdAt: serverTimestamp(),
@@ -62,6 +74,18 @@ export const FirebaseQuizService = {
    */
   async getAll(): Promise<Quiz[]> {
     try {
+      if (isServer && adminDb) {
+        // Server-side: use Admin SDK
+        const snapshot = await adminDb.collection(QUIZZES_COLLECTION)
+          .orderBy('createdAt', 'desc')
+          .get();
+        
+        return snapshot.docs.map(doc => 
+          firestoreToQuiz(doc.id, doc.data())
+        );
+      }
+      
+      // Client-side: use client SDK
       // Try with orderBy first, but fallback to simple query if index doesn't exist
       let querySnapshot;
       try {
@@ -195,8 +219,50 @@ export const FirebaseQuizService = {
    */
   async add(quiz: Omit<Quiz, 'id' | 'createdAt'>): Promise<Quiz> {
     try {
+      // #region agent log
+      console.log('[FirebaseQuizService] Adding quiz:', {
+        title: quiz.title,
+        courseId: quiz.courseId,
+        createdBy: quiz.createdBy,
+        questionsCount: quiz.questions?.length || 0,
+        isServer,
+        hasDb: !!db,
+        hasAdminDb: !!adminDb,
+      });
+      // #endregion
+      
       const quizData = quizToFirestore(quiz as Omit<Quiz, 'id'>);
-      const docRef = await addDoc(collection(db, QUIZZES_COLLECTION), quizData);
+      
+      // #region agent log
+      console.log('[FirebaseQuizService] Quiz data prepared, attempting to add to Firestore...');
+      // #endregion
+      
+      let docRef;
+      
+      // Use Admin SDK on server, client SDK on client
+      if (isServer && adminDb) {
+        // Server-side: use Admin SDK
+        const quizDataForAdmin = quizToFirestore(quiz as Omit<Quiz, 'id'>, true);
+        const docRefAdmin = adminDb.collection(QUIZZES_COLLECTION).doc();
+        await docRefAdmin.set({
+          ...quizDataForAdmin,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        docRef = { id: docRefAdmin.id } as any;
+        // #region agent log
+        console.log('[FirebaseQuizService] Quiz added via Admin SDK:', docRef.id);
+        // #endregion
+      } else {
+        // Client-side: use client SDK
+        if (!db) {
+          throw new Error('Firestore not initialized');
+        }
+        const quizDataForClient = quizToFirestore(quiz as Omit<Quiz, 'id'>, false);
+        docRef = await addDoc(collection(db, QUIZZES_COLLECTION), quizDataForClient);
+        // #region agent log
+        console.log('[FirebaseQuizService] Quiz added via Client SDK:', docRef.id);
+        // #endregion
+      }
       
       console.log(`[FirebaseQuizService] Added quiz: ${docRef.id} - "${quiz.title}"`);
       
@@ -206,7 +272,16 @@ export const FirebaseQuizService = {
         id: docRef.id,
         createdAt: new Date().toISOString(),
       } as Quiz;
-    } catch (error) {
+    } catch (error: any) {
+      // #region agent log
+      console.error('[FirebaseQuizService] Error adding quiz - details:', {
+        message: error?.message,
+        code: error?.code,
+        name: error?.name,
+        isServer,
+        stack: error?.stack?.substring(0, 300),
+      });
+      // #endregion
       console.error('[FirebaseQuizService] Error adding quiz:', error);
       throw error;
     }

@@ -75,7 +75,15 @@ export const QuizApiClient = {
       body: JSON.stringify(quiz),
     });
     if (!res.ok) {
-      throw new Error(`Failed to create quiz: ${res.statusText}`);
+      // Try to get error message from response
+      let errorMessage = res.statusText;
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        // If JSON parsing fails, use statusText
+      }
+      throw new Error(`Failed to create quiz: ${errorMessage}`);
     }
     return res.json();
   },

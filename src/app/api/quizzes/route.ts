@@ -37,12 +37,40 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    
+    // #region agent log
+    console.log('[API] POST /api/quizzes - Received quiz data:', {
+      hasTitle: !!body.title,
+      hasCourseId: !!body.courseId,
+      hasCreatedBy: !!body.createdBy,
+      questionsCount: body.questions?.length || 0,
+      totalPoints: body.totalPoints,
+      difficulty: body.difficulty,
+    });
+    // #endregion
+    
     const quiz = await FirebaseQuizService.add(body);
+    
+    // #region agent log
+    console.log('[API] POST /api/quizzes - Quiz created successfully:', quiz.id);
+    // #endregion
+    
     return NextResponse.json(quiz, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[API] POST /api/quizzes error:', error);
+    // #region agent log
+    console.error('[API] POST /api/quizzes - Error details:', {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack?.substring(0, 200),
+    });
+    // #endregion
     return NextResponse.json(
-      { error: 'Failed to create quiz' },
+      { 
+        error: 'Failed to create quiz',
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN',
+      },
       { status: 500 }
     );
   }
