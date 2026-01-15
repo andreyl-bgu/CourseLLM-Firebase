@@ -18,7 +18,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { adminDb } from './firebase-admin';
+import { getAdminFirestore } from './firebase-admin';
 import admin from 'firebase-admin';
 import { Quiz } from './types';
 
@@ -74,9 +74,10 @@ export const FirebaseQuizService = {
    */
   async getAll(): Promise<Quiz[]> {
     try {
-      if (isServer && adminDb) {
+      if (isServer) {
         // Server-side: use Admin SDK
-        const snapshot = await adminDb.collection(QUIZZES_COLLECTION)
+        const adminDbInstance = getAdminFirestore();
+        const snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
           .orderBy('createdAt', 'desc')
           .get();
         
@@ -240,10 +241,11 @@ export const FirebaseQuizService = {
       let docRef;
       
       // Use Admin SDK on server, client SDK on client
-      if (isServer && adminDb) {
+      if (isServer) {
+        const adminDbInstance = getAdminFirestore();
         // Server-side: use Admin SDK
         const quizDataForAdmin = quizToFirestore(quiz as Omit<Quiz, 'id'>, true);
-        const docRefAdmin = adminDb.collection(QUIZZES_COLLECTION).doc();
+        const docRefAdmin = adminDbInstance.collection(QUIZZES_COLLECTION).doc();
         await docRefAdmin.set({
           ...quizDataForAdmin,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
