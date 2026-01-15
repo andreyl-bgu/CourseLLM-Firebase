@@ -28,10 +28,10 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json(attempts);
-  } catch (error) {
+  } catch (error: any) {
     console.error('[API] GET /api/attempts error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch attempts' },
+      { error: 'Failed to fetch attempts', message: error.message || 'Unknown error' },
       { status: 500 }
     );
   }
@@ -46,10 +46,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const attempt = await FirebaseAttemptService.create(body);
     return NextResponse.json(attempt, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[API] POST /api/attempts error:', error);
     return NextResponse.json(
-      { error: 'Failed to create attempt' },
+      { error: 'Failed to create attempt', message: error.message || 'Unknown error' },
       { status: 500 }
     );
   }
