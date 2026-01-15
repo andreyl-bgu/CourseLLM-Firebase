@@ -23,7 +23,7 @@ import { QuizApiClient } from '@/lib/quiz-api-client';
 import { Quiz, QuizQuestion } from '@/lib/types';
 import { Sparkles, Loader2, CheckCircle, AlertCircle, ArrowLeft, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { generateQuiz } from '@/ai/flows/quiz-generation';
+// Quiz generation is now handled via API route
 
 // Mock current teacher ID
 const CURRENT_TEACHER_ID = 'teacher-1';
@@ -87,14 +87,25 @@ export default function GenerateQuizPage() {
       // Request 80% more than needed to ensure we get the desired number after filtering
       const requestedQuestions = Math.ceil(numberOfQuestions * 1.8);
       
-      // Call AI flow to generate quiz
-      const result = await generateQuiz({
-        courseContent,
-        learningObjectives,
-        numberOfQuestions: requestedQuestions,
-        difficulty,
-        topics: topicList.length > 0 ? topicList : undefined,
+      // Call API route to generate quiz
+      const response = await fetch('/api/quizzes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseContent,
+          learningObjectives,
+          numberOfQuestions: requestedQuestions,
+          difficulty,
+          topics: topicList.length > 0 ? topicList : undefined,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error || 'Failed to generate quiz');
+      }
+
+      const result = await response.json();
       
       // If we got fewer questions than requested, warn the user
       if (result.questions.length < numberOfQuestions) {

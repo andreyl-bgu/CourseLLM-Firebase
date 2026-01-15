@@ -62,9 +62,25 @@ export const FirebaseQuizService = {
    */
   async getAll(): Promise<Quiz[]> {
     try {
-      const querySnapshot = await getDocs(
-        query(collection(db, QUIZZES_COLLECTION), orderBy('createdAt', 'desc'))
-      );
+      // Try with orderBy first, but fallback to simple query if index doesn't exist
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(
+          query(collection(db, QUIZZES_COLLECTION), orderBy('createdAt', 'desc'))
+        );
+      } catch (orderByError: any) {
+        // If orderBy fails (e.g., missing index), try without it
+        if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
+          console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
+          querySnapshot = await getDocs(collection(db, QUIZZES_COLLECTION));
+          // Sort in memory instead
+          const docs = querySnapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
+          return docs.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        }
+        throw orderByError;
+      }
       
       return querySnapshot.docs.map(doc => 
         firestoreToQuiz(doc.id, doc.data())
@@ -99,13 +115,31 @@ export const FirebaseQuizService = {
    */
   async getByCourse(courseId: string): Promise<Quiz[]> {
     try {
-      const q = query(
-        collection(db, QUIZZES_COLLECTION),
-        where('courseId', '==', courseId),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        const q = query(
+          collection(db, QUIZZES_COLLECTION),
+          where('courseId', '==', courseId),
+          orderBy('createdAt', 'desc')
+        );
+        querySnapshot = await getDocs(q);
+      } catch (orderByError: any) {
+        // If orderBy fails (e.g., missing index), try without it
+        if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
+          console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
+          const q = query(
+            collection(db, QUIZZES_COLLECTION),
+            where('courseId', '==', courseId)
+          );
+          querySnapshot = await getDocs(q);
+          // Sort in memory instead
+          const docs = querySnapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
+          return docs.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        }
+        throw orderByError;
+      }
       
       return querySnapshot.docs.map(doc => 
         firestoreToQuiz(doc.id, doc.data())
@@ -121,13 +155,31 @@ export const FirebaseQuizService = {
    */
   async getByTeacher(teacherId: string): Promise<Quiz[]> {
     try {
-      const q = query(
-        collection(db, QUIZZES_COLLECTION),
-        where('createdBy', '==', teacherId),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        const q = query(
+          collection(db, QUIZZES_COLLECTION),
+          where('createdBy', '==', teacherId),
+          orderBy('createdAt', 'desc')
+        );
+        querySnapshot = await getDocs(q);
+      } catch (orderByError: any) {
+        // If orderBy fails (e.g., missing index), try without it
+        if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
+          console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
+          const q = query(
+            collection(db, QUIZZES_COLLECTION),
+            where('createdBy', '==', teacherId)
+          );
+          querySnapshot = await getDocs(q);
+          // Sort in memory instead
+          const docs = querySnapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
+          return docs.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        }
+        throw orderByError;
+      }
       
       return querySnapshot.docs.map(doc => 
         firestoreToQuiz(doc.id, doc.data())
