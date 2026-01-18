@@ -6,6 +6,7 @@
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
+import http from 'http';
 
 function initAdmin() {
   // Return existing app if already initialized
@@ -64,15 +65,46 @@ function initAdmin() {
     // Check if we're using Firebase emulators (local development)
     const useEmulator = process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_EMULATOR_HUB;
     
+    // #region agent log
+    const logData = JSON.stringify({location:'firebase-admin.ts:65',message:'Checking for emulator',data:{hasFIRESTORE_EMULATOR_HOST:!!process.env.FIRESTORE_EMULATOR_HOST,hasFIREBASE_EMULATOR_HUB:!!process.env.FIREBASE_EMULATOR_HUB,FIRESTORE_EMULATOR_HOST:process.env.FIRESTORE_EMULATOR_HOST||'not set',FIREBASE_EMULATOR_HUB:process.env.FIREBASE_EMULATOR_HUB||'not set',useEmulator:!!useEmulator,loadMethod},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
+    const req = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req.on('error',()=>{});req.write(logData);req.end();
+    // #endregion
+    
     if (useEmulator) {
       // For emulators, we can initialize without credentials
       try {
-        admin.initializeApp({
-          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-project',
-        });
-        console.log('[Firebase Admin] Initialized for emulator use');
-        return admin.app();
+        // #region agent log
+        const logData2 = JSON.stringify({location:'firebase-admin.ts:70',message:'Initializing Admin SDK for emulator',data:{projectId:process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID||'demo-project',hasGOOGLE_APPLICATION_CREDENTIALS:!!process.env.GOOGLE_APPLICATION_CREDENTIALS},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
+        const req2 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req2.on('error',()=>{});req2.write(logData2);req2.end();
+        // #endregion
+        // Temporarily unset GOOGLE_APPLICATION_CREDENTIALS to prevent SDK from trying to read it
+        const originalCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        if (originalCreds) {
+          delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        }
+        try {
+          const app = admin.initializeApp({
+            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-project',
+          });
+          
+          // #region agent log
+          const logData3 = JSON.stringify({location:'firebase-admin.ts:86',message:'Admin SDK initialized for emulator',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
+          const req3 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req3.on('error',()=>{});req3.write(logData3);req3.end();
+          // #endregion
+          console.log('[Firebase Admin] Initialized for emulator use');
+          // Note: Firestore settings will be applied in getAdminDb() before first use
+          return app;
+        } finally {
+          // Restore original value if it existed
+          if (originalCreds) {
+            process.env.GOOGLE_APPLICATION_CREDENTIALS = originalCreds;
+          }
+        }
       } catch (e) {
+        // #region agent log
+        const logData4 = JSON.stringify({location:'firebase-admin.ts:80',message:'Failed to initialize for emulator',data:{error:e instanceof Error?e.message:'Unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
+        const req4 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req4.on('error',()=>{});req4.write(logData4);req4.end();
+        // #endregion
         console.error('[Firebase Admin] Failed to initialize for emulator:', e);
       }
     }
@@ -110,6 +142,8 @@ function getAdminApp(): admin.app.App {
 function getAdminDb(): admin.firestore.Firestore {
   if (!_adminDb) {
     _adminDb = getAdminApp().firestore();
+    // Firebase Admin SDK automatically detects FIRESTORE_EMULATOR_HOST
+    // No need for manual .settings() call - it can cause conflicts
   }
   return _adminDb;
 }

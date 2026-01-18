@@ -11,6 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
+  /* Global setup and teardown */
+  globalSetup: require.resolve('./tests/global-setup.ts'),
+  globalTeardown: require.resolve('./tests/global-teardown.ts'),
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -39,13 +42,31 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'ENABLE_TEST_AUTH=true FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json npm run dev',
-    url: 'http://localhost:9002',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  /* Run Firebase emulators and Next.js dev server before starting the tests */
+  webServer: [
+    {
+      name: 'firebase-emulators',
+      command: 'firebase emulators:start --only firestore,auth',
+      url: 'http://127.0.0.1:4000', // Emulator UI
+      reuseExistingServer: !process.env.CI,
+      timeout: 60 * 1000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      name: 'nextjs-dev',
+      command: 'npm run dev',
+      url: 'http://localhost:9002',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+      dependencies: ['firebase-emulators'], // Wait for emulators first
+      env: {
+        ENABLE_TEST_AUTH: 'true',
+        FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
+        FIREBASE_EMULATOR_HUB: 'http://127.0.0.1:4000',
+      },
+    },
+  ],
 
   /* Test timeout - increased for AI generation tests */
   timeout: 120 * 1000, // 2 minutes for AI generation

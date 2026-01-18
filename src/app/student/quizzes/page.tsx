@@ -32,14 +32,26 @@ export default function StudentQuizzesPage() {
   // Fetch quizzes from Firebase
   useEffect(() => {
     const fetchQuizzes = async () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:34',message:'fetchQuizzes started',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       try {
         setIsLoading(true);
         const allQuizzes = await QuizApiClient.getAll();
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:38',message:'Quizzes received from API',data:{count:allQuizzes?.length||0,isEmpty:!allQuizzes||allQuizzes.length===0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         setQuizzes(allQuizzes);
       } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:41',message:'Error fetching quizzes',data:{error:error instanceof Error?error.message:'Unknown',hasError:!!error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         console.error('Error fetching quizzes:', error);
       } finally {
         setIsLoading(false);
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:44',message:'fetchQuizzes completed',data:{isLoading:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
       }
     };
 
