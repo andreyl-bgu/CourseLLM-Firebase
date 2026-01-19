@@ -293,42 +293,54 @@ export const FirebaseQuizService = {
    */
   async add(quiz: Omit<Quiz, 'id' | 'createdAt'>): Promise<Quiz> {
     try {
-      
-      const quizData = quizToFirestore(quiz as Omit<Quiz, 'id'>);
-      
-      let docRef;
-      
-      // Use Admin SDK on server, client SDK on client
       if (isServer) {
-        const adminDbInstance = getAdminFirestore();
-        // Server-side: use Admin SDK
-        const quizDataForAdmin = quizToFirestore(quiz as Omit<Quiz, 'id'>, true);
-        const docRefAdmin = adminDbInstance.collection(QUIZZES_COLLECTION).doc();
-        await docRefAdmin.set({
-          ...quizDataForAdmin,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        docRef = { id: docRefAdmin.id } as any;
+        // Server-side: MUST use Admin SDK
+        try {
+          const adminDbInstance = getAdminFirestore();
+          const quizDataForAdmin = quizToFirestore(quiz as Omit<Quiz, 'id'>, true);
+          const docRefAdmin = adminDbInstance.collection(QUIZZES_COLLECTION).doc();
+          await docRefAdmin.set({
+            ...quizDataForAdmin,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          const docRef = { id: docRefAdmin.id } as any;
+          
+          console.log(`[FirebaseQuizService] Added quiz: ${docRef.id} - "${quiz.title}"`);
+          
+          // Return the created quiz with the generated ID
+          return {
+            ...quiz,
+            id: docRef.id,
+            createdAt: new Date().toISOString(),
+          } as Quiz;
+        } catch (adminError) {
+          console.error('[FirebaseQuizService] Admin SDK error:', adminError);
+          throw new Error(`Failed to create quiz using Admin SDK: ${adminError instanceof Error ? adminError.message : String(adminError)}`);
+        }
       } else {
         // Client-side: use client SDK
         if (!db) {
-          throw new Error('Firestore not initialized');
+          throw new Error('Firestore not initialized on client');
         }
         const quizDataForClient = quizToFirestore(quiz as Omit<Quiz, 'id'>, false);
-        docRef = await addDoc(collection(db, QUIZZES_COLLECTION), quizDataForClient);
+        const docRef = await addDoc(collection(db, QUIZZES_COLLECTION), quizDataForClient);
+        
+        console.log(`[FirebaseQuizService] Added quiz: ${docRef.id} - "${quiz.title}"`);
+        
+        // Return the created quiz with the generated ID
+        return {
+          ...quiz,
+          id: docRef.id,
+          createdAt: new Date().toISOString(),
+        } as Quiz;
       }
-      
-      console.log(`[FirebaseQuizService] Added quiz: ${docRef.id} - "${quiz.title}"`);
-      
-      // Return the created quiz with the generated ID
-      return {
-        ...quiz,
-        id: docRef.id,
-        createdAt: new Date().toISOString(),
-      } as Quiz;
     } catch (error: any) {
       console.error('[FirebaseQuizService] Error adding quiz:', error);
-      throw error;
+      // Ensure we provide a clear error message
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(`Failed to create quiz: ${String(error)}`);
     }
   },
 

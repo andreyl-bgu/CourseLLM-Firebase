@@ -9,9 +9,72 @@ import path from 'path';
 import http from 'http';
 
 function initAdmin() {
+  console.log('[Firebase Admin] initAdmin() called, admin.apps.length:', admin.apps.length);
   // Return existing app if already initialized
   if (admin.apps.length > 0) {
-    return admin.app();
+    try {
+      // Try to get the default app (no name)
+      const defaultApp = admin.app();
+      console.log('[Firebase Admin] Using existing default app:', defaultApp.name);
+      return defaultApp;
+    } catch (error) {
+      // Default app doesn't exist, but there are named apps
+      const appNames = admin.apps.map(a => a.name);
+      console.warn('[Firebase Admin] Default app not found, but apps exist. App names:', appNames);
+      // Use the first available app (could be a named app)
+      const firstApp = admin.apps[0];
+      console.log('[Firebase Admin] Using first available app:', firstApp.name);
+      return firstApp;
+    }
+  }
+  
+  console.log('[Firebase Admin] No existing apps, starting initialization...');
+  console.log('[Firebase Admin] Environment variables:', {
+    hasFIREBASE_SERVICE_ACCOUNT_JSON: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+    hasFIREBASE_SERVICE_ACCOUNT_PATH: !!process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
+    hasFIRESTORE_EMULATOR_HOST: !!process.env.FIRESTORE_EMULATOR_HOST,
+    hasFIREBASE_EMULATOR_HUB: !!process.env.FIREBASE_EMULATOR_HUB,
+    hasFUNCTION_TARGET: !!process.env.FUNCTION_TARGET,
+    hasK_SERVICE: !!process.env.K_SERVICE,
+    hasGCLOUD_PROJECT: !!process.env.GCLOUD_PROJECT,
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  });
+
+  // First, try Application Default Credentials (ADC) in production
+  // In Cloud Functions/Firebase Hosting, ADC should be automatically available
+  const isProduction = !process.env.FIRESTORE_EMULATOR_HOST && !process.env.FIREBASE_EMULATOR_HUB;
+  const isCloudFunction = !!(process.env.FUNCTION_TARGET || process.env.K_SERVICE || process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT);
+  
+  // Try ADC first in production (Cloud Functions automatically provides ADC)
+  // Also try if we detect we're in a Google Cloud environment
+  if (isProduction || isCloudFunction || process.env.GOOGLE_CLOUD_PROJECT) {
+    try {
+      console.log('[Firebase Admin] Attempting to initialize with Application Default Credentials (ADC)');
+      console.log('[Firebase Admin] Environment check:', {
+        isProduction,
+        isCloudFunction,
+        hasGCLOUD_PROJECT: !!process.env.GCLOUD_PROJECT,
+        hasGOOGLE_CLOUD_PROJECT: !!process.env.GOOGLE_CLOUD_PROJECT,
+        hasFUNCTION_TARGET: !!process.env.FUNCTION_TARGET,
+        hasK_SERVICE: !!process.env.K_SERVICE,
+      });
+      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'coursellm-afe61';
+      // Try initializing without explicit credential - ADC should be used automatically
+      // Don't specify a name to ensure it's the default app
+      const app = admin.initializeApp({
+        projectId: projectId,
+      }, '[DEFAULT]'); // Explicitly set as default
+      console.log('[Firebase Admin] Successfully initialized with Application Default Credentials for project:', projectId);
+      return app;
+    } catch (adcError) {
+      const errorMsg = adcError instanceof Error ? adcError.message : String(adcError);
+      console.warn('[Firebase Admin] ADC initialization failed, will try service account:', errorMsg);
+      console.warn('[Firebase Admin] ADC error details:', {
+        code: (adcError as any)?.code,
+        stack: (adcError as Error)?.stack?.substring(0, 200),
+      });
+      // Fall through to try service account
+    }
   }
 
   let serviceAccount: any = null;
@@ -20,11 +83,15 @@ function initAdmin() {
   // Try to get service account from environment variable
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
     try {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      const jsonString = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      console.log('[Firebase Admin] Found FIREBASE_SERVICE_ACCOUNT_JSON, length:', jsonString.length);
+      serviceAccount = JSON.parse(jsonString);
       loadMethod = 'FIREBASE_SERVICE_ACCOUNT_JSON';
-      console.log('[Firebase Admin] Loaded service account from FIREBASE_SERVICE_ACCOUNT_JSON');
+      console.log('[Firebase Admin] Successfully loaded service account from FIREBASE_SERVICE_ACCOUNT_JSON');
+      console.log('[Firebase Admin] Service account client_email:', serviceAccount.client_email);
     } catch (e) {
       console.error('[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON', e);
+      console.error('[Firebase Admin] JSON string preview:', process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.substring(0, 100));
     }
   } 
   // Try to get service account from file path
@@ -83,9 +150,10 @@ function initAdmin() {
           delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
         }
         try {
+          // Initialize as default app (no name parameter)
           const app = admin.initializeApp({
             projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-project',
-          });
+          }, '[DEFAULT]'); // Explicitly set as default
           
           // #region agent log
           const logData3 = JSON.stringify({location:'firebase-admin.ts:86',message:'Admin SDK initialized for emulator',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
@@ -109,11 +177,12 @@ function initAdmin() {
       }
     }
     
-    // In production/Codespace, we need service account
+    // If we get here, we couldn't initialize with ADC or emulators
     console.error('[Firebase Admin] Service account not found. Load method attempted:', loadMethod);
     console.error('[Firebase Admin] Tried:');
     console.error('  - FIREBASE_SERVICE_ACCOUNT_JSON env var:', !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
     console.error('  - FIREBASE_SERVICE_ACCOUNT_PATH env var:', process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 'not set');
+    console.error('  - Application Default Credentials (ADC):', isCloudFunction);
     const defaultPath = path.resolve(process.cwd(), './service-account.json');
     console.error('  - ./service-account.json file exists:', fs.existsSync(defaultPath));
     console.error('[Firebase Admin] Please set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH environment variable.');
@@ -121,11 +190,19 @@ function initAdmin() {
   }
 
   // Initialize with service account
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-
-  return admin.app();
+  try {
+    console.log('[Firebase Admin] Initializing with service account, method:', loadMethod);
+    // Initialize as default app (no name parameter) to ensure it's the default
+    const app = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: serviceAccount.project_id || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'coursellm-afe61',
+    }, '[DEFAULT]'); // Explicitly set as default
+    console.log('[Firebase Admin] Successfully initialized with service account');
+    return app;
+  } catch (initError) {
+    console.error('[Firebase Admin] Failed to initialize with service account:', initError);
+    throw new Error(`Failed to initialize Firebase Admin SDK: ${initError instanceof Error ? initError.message : String(initError)}`);
+  }
 }
 
 // Lazy initialization - only initialize when needed to avoid errors at module load time
@@ -141,9 +218,24 @@ function getAdminApp(): admin.app.App {
 
 function getAdminDb(): admin.firestore.Firestore {
   if (!_adminDb) {
-    _adminDb = getAdminApp().firestore();
-    // Firebase Admin SDK automatically detects FIRESTORE_EMULATOR_HOST
-    // No need for manual .settings() call - it can cause conflicts
+    try {
+      console.log('[Firebase Admin] Getting Admin app...');
+      const app = getAdminApp();
+      console.log('[Firebase Admin] Admin app obtained:', app.name, 'apps count:', admin.apps.length);
+      console.log('[Firebase Admin] Getting Firestore instance...');
+      _adminDb = app.firestore();
+      console.log('[Firebase Admin] Firestore instance obtained successfully');
+      // Firebase Admin SDK automatically detects FIRESTORE_EMULATOR_HOST
+      // No need for manual .settings() call - it can cause conflicts
+    } catch (error) {
+      console.error('[Firebase Admin] Failed to get Firestore instance:', error);
+      console.error('[Firebase Admin] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        code: (error as any)?.code,
+        stack: (error as Error)?.stack?.substring(0, 300),
+      });
+      throw new Error(`Firebase Admin SDK initialization failed: ${error instanceof Error ? error.message : String(error)}. Please ensure service account credentials are configured.`);
+    }
   }
   return _adminDb;
 }
