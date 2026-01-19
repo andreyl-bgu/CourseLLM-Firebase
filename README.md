@@ -1,5 +1,11 @@
 # CourseLLM
 
+## 🌐 Production Deployment
+
+**Live Application:** [https://coursellm-afe61.web.app/](https://coursellm-afe61.web.app/)
+
+The application is deployed and available for testing. You can access it using Google OAuth authentication.
+
 ## Purpose
 CourseLLM (Coursewise) is an educational platform that leverages AI to provide personalized learning experiences. 
 It is intended for Undergraduate University Courses and is being tested on Computer Science courses.
@@ -250,6 +256,12 @@ See [`docs/features/QUIZ_README.md`](docs/features/QUIZ_README.md) for detailed 
 ---
 
 ## Deployment
+
+### Production URL
+
+**Live Application:** [https://coursellm-afe61.web.app/](https://coursellm-afe61.web.app/)
+
+The application is deployed to Firebase Hosting and App Hosting. Reviewers can test the production deployment using Google OAuth authentication.
 
 ### Firebase Hosting + App Hosting
 
