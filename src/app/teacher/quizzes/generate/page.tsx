@@ -48,40 +48,78 @@ export default function GenerateQuizPage() {
   // Fetch courses from Firebase
   useEffect(() => {
     const fetchCourses = async () => {
-      if (!firebaseUser?.uid) return;
+      console.log('[QuizGenerate] useEffect triggered, firebaseUser:', firebaseUser?.uid || 'null');
       
+      if (!firebaseUser?.uid) {
+        console.log('[QuizGenerate] No firebaseUser.uid, skipping fetch');
+        setIsLoadingCourses(false);
+        return;
+      }
+      
+      console.log('[QuizGenerate] Starting fetch for teacherId:', firebaseUser.uid);
       setIsLoadingCourses(true);
+      
       try {
-        const response = await fetch(`/api/courses?teacherId=${firebaseUser.uid}`);
+        const url = `/api/courses?teacherId=${firebaseUser.uid}`;
+        console.log('[QuizGenerate] Fetching from:', url);
+        
+        const response = await fetch(url);
+        console.log('[QuizGenerate] Response status:', response.status, response.statusText);
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch courses');
+          const errorText = await response.text();
+          console.error('[QuizGenerate] Response error:', response.status, errorText);
+          throw new Error(`Failed to fetch courses: ${response.status} ${response.statusText}`);
         }
+        
         const data = await response.json();
-        console.log('[QuizGenerate] Fetched courses:', {
+        console.log('[QuizGenerate] Fetched courses response:', {
+          isArray: Array.isArray(data),
           count: Array.isArray(data) ? data.length : 0,
-          courses: data,
+          data: data,
           teacherId: firebaseUser.uid
         });
+        
         // Ensure we have an array and filter out any invalid courses
         const validCourses = Array.isArray(data) 
-          ? data.filter(c => c && c.id && c.title)
+          ? data.filter(c => {
+              const isValid = c && c.id && c.title;
+              if (!isValid) {
+                console.warn('[QuizGenerate] Invalid course filtered out:', c);
+              }
+              return isValid;
+            })
           : [];
-        console.log('[QuizGenerate] Valid courses after filtering:', validCourses.length, validCourses);
+        
+        console.log('[QuizGenerate] Valid courses after filtering:', {
+          count: validCourses.length,
+          courses: validCourses.map(c => ({ id: c.id, title: c.title }))
+        });
+        
         setCourses(validCourses);
+        
+        if (validCourses.length === 0) {
+          console.warn('[QuizGenerate] No valid courses found for teacher:', firebaseUser.uid);
+        }
       } catch (error) {
-        console.error('Error fetching courses:', error);
+        console.error('[QuizGenerate] Error fetching courses:', error);
+        console.error('[QuizGenerate] Error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
         toast({
           title: 'Error',
-          description: 'Failed to load courses. Please try again.',
+          description: error instanceof Error ? error.message : 'Failed to load courses. Please try again.',
           variant: 'destructive',
         });
+        setCourses([]);
       } finally {
         setIsLoadingCourses(false);
       }
     };
 
     fetchCourses();
-  }, [firebaseUser]);
+  }, [firebaseUser, toast]);
 
   // Get selected course
   const selectedCourseData = courses.find((c) => c.id === selectedCourse);
