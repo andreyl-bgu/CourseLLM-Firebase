@@ -72,8 +72,6 @@ function firestoreToCourse(id: string, data: any): Course {
   return {
     ...data,
     id,
-    createdAt: timestampToISO(data.createdAt),
-    updatedAt: timestampToISO(data.updatedAt),
   } as Course;
 }
 
