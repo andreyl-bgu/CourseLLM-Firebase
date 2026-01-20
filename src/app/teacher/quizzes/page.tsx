@@ -12,6 +12,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/components/AuthProviderClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,42 +29,70 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { QuizApiClient } from '@/lib/quiz-api-client';
-import { courses, quizAttempts } from '@/lib/mock-data';
-import { Quiz } from '@/lib/types';
+import { Quiz, Course, QuizAttempt } from '@/lib/types';
 import { Plus, BarChart, Users, Trophy, BookOpen, Loader2, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
-// Mock current teacher ID
-const CURRENT_TEACHER_ID = 'teacher-1';
-
 export default function TeacherQuizzesPage() {
+  const { firebaseUser } = useAuth();
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [allQuizzes, setAllQuizzes] = useState<Quiz[]>([]);
+  const [allAttempts, setAllAttempts] = useState<QuizAttempt[]>([]);
+  const [teacherCourses, setTeacherCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Get teacher's courses (mock - all courses for now)
-  const teacherCourses = courses;
-
-  // Fetch quizzes from Firebase
-  const fetchQuizzes = async () => {
+  // Fetch quizzes, attempts, and courses from Firebase
+  const fetchData = async () => {
+    if (!firebaseUser?.uid) return;
+    
     try {
       setIsLoading(true);
-      const quizzes = await QuizApiClient.getAll();
+      
+      // Fetch quizzes, attempts, and courses in parallel
+      const [quizzes, coursesResponse] = await Promise.all([
+        QuizApiClient.getByTeacher(firebaseUser.uid),
+        fetch(`/api/courses?teacherId=${firebaseUser.uid}`).then(res => res.ok ? res.json() : [])
+      ]);
+      
       setAllQuizzes(quizzes);
+      setTeacherCourses(coursesResponse);
+      
+      // Fetch attempts for all quizzes
+      const quizIds = quizzes.map(q => q.id);
+      const attemptsPromises = quizIds.map(quizId => 
+        QuizApiClient.getAttemptsByQuiz(quizId).catch(() => [])
+      );
+      
+      const allAttemptsArrays = await Promise.all(attemptsPromises);
+      const flatAttempts = allAttemptsArrays.flat();
+      
+      console.log('[TeacherQuizzes] Fetched data:', {
+        quizzes: quizzes.length,
+        courses: coursesResponse.length,
+        attempts: flatAttempts.length,
+        teacherId: firebaseUser.uid
+      });
+      
+      setAllAttempts(flatAttempts);
     } catch (error) {
-      console.error('Error fetching quizzes:', error);
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load quizzes. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchQuizzes();
-  }, []);
+    fetchData();
+  }, [firebaseUser]);
 
   // Handle delete quiz
   const handleDeleteClick = (quiz: Quiz) => {
@@ -84,7 +113,7 @@ export default function TeacherQuizzesPage() {
       });
 
       // Refresh the quiz list
-      await fetchQuizzes();
+      await fetchData();
     } catch (error) {
       console.error('Error deleting quiz:', error);
       toast({
@@ -99,32 +128,40 @@ export default function TeacherQuizzesPage() {
     }
   };
 
-  // Filter quizzes
+  // Filter quizzes by course and difficulty (createdBy is already filtered by API)
   const teacherQuizzes = allQuizzes.filter((quiz) => {
-    if (quiz.createdBy !== CURRENT_TEACHER_ID) return false;
     if (selectedCourse !== 'all' && quiz.courseId !== selectedCourse) return false;
     if (selectedDifficulty !== 'all' && quiz.difficulty !== selectedDifficulty) return false;
     return true;
   });
 
-  // Get quiz statistics
+  // Get quiz statistics from real attempts
   const getQuizStats = (quizId: string) => {
-    const attempts = quizAttempts.filter((a) => a.quizId === quizId && a.status === 'completed');
+    const attempts = allAttempts.filter((a) => a.quizId === quizId && a.status === 'completed');
     const totalAttempts = attempts.length;
     
     if (totalAttempts === 0) {
       return { totalAttempts: 0, averageScore: 0, completionRate: 0 };
     }
 
-    const totalScore = attempts.reduce((sum, a) => sum + a.score, 0);
-    const maxScore = attempts[0]?.maxScore || 0;
-    const averageScore = totalScore / totalAttempts;
-    const averagePercentage = maxScore > 0 ? (averageScore / maxScore) * 100 : 0;
+    // Calculate average score percentage
+    const totalPercentage = attempts.reduce((sum, a) => {
+      const percentage = a.maxScore > 0 ? (a.score / a.maxScore) * 100 : 0;
+      return sum + percentage;
+    }, 0);
+    const averageScore = totalPercentage / totalAttempts;
+
+    // Calculate completion rate (completed attempts / all attempts for this quiz)
+    const allQuizAttempts = allAttempts.filter((a) => a.quizId === quizId);
+    const completedAttempts = allQuizAttempts.filter((a) => a.status === 'completed').length;
+    const completionRate = allQuizAttempts.length > 0 
+      ? (completedAttempts / allQuizAttempts.length) * 100 
+      : 0;
 
     return {
       totalAttempts,
-      averageScore: averagePercentage,
-      completionRate: 100, // Mock - all started quizzes are completed in our data
+      averageScore,
+      completionRate,
     };
   };
 
@@ -222,7 +259,7 @@ export default function TeacherQuizzesPage() {
       ) : (
         <div className="space-y-6">
           {teacherQuizzes.map((quiz) => {
-            const course = courses.find((c) => c.id === quiz.courseId);
+            const course = teacherCourses.find((c) => c.id === quiz.courseId);
             const stats = getQuizStats(quiz.id);
 
             return (
@@ -237,7 +274,7 @@ export default function TeacherQuizzesPage() {
                         </Badge>
                       </div>
                       <CardDescription>
-                        {course?.title} • {quiz.questions.length} questions • {quiz.totalPoints} points
+                        {course?.title || 'Unknown Course'} • {quiz.questions.length} questions • {quiz.totalPoints} points
                       </CardDescription>
                     </div>
                   </div>
@@ -350,4 +387,3 @@ export default function TeacherQuizzesPage() {
     </div>
   );
 }
-
