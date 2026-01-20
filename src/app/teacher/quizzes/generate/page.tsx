@@ -7,8 +7,9 @@
  * Teachers can configure quiz parameters and preview before saving.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/AuthProviderClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,20 +19,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { courses } from '@/lib/mock-data';
 import { QuizApiClient } from '@/lib/quiz-api-client';
-import { Quiz, QuizQuestion } from '@/lib/types';
+import { Quiz, QuizQuestion, Course } from '@/lib/types';
 import { Sparkles, Loader2, CheckCircle, AlertCircle, ArrowLeft, Save } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 // Quiz generation is now handled via API route
-
-// Mock current teacher ID
-const CURRENT_TEACHER_ID = 'teacher-1';
 
 export default function GenerateQuizPage() {
   const router = useRouter();
+  const { firebaseUser } = useAuth();
+  const { toast } = useToast();
 
   // Form state
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [quizTitle, setQuizTitle] = useState<string>('');
   const [quizDescription, setQuizDescription] = useState<string>('');
@@ -43,6 +44,34 @@ export default function GenerateQuizPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedQuestions, setGeneratedQuestions] = useState<QuizQuestion[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+
+  // Fetch courses from Firebase
+  useEffect(() => {
+    const fetchCourses = async () => {
+      if (!firebaseUser?.uid) return;
+      
+      setIsLoadingCourses(true);
+      try {
+        const response = await fetch(`/api/courses?teacherId=${firebaseUser.uid}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch courses');
+        }
+        const data = await response.json();
+        setCourses(data);
+      } catch (error) {
+        console.error('Error fetching courses:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load courses. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingCourses(false);
+      }
+    };
+
+    fetchCourses();
+  }, [firebaseUser]);
 
   // Get selected course
   const selectedCourseData = courses.find((c) => c.id === selectedCourse);
@@ -167,7 +196,7 @@ export default function GenerateQuizPage() {
         title: quizTitle,
         description: quizDescription,
         questions: generatedQuestions,
-        createdBy: CURRENT_TEACHER_ID,
+        createdBy: firebaseUser?.uid || '',
         totalPoints,
         difficulty,
         topics: uniqueTopics,
@@ -227,21 +256,32 @@ export default function GenerateQuizPage() {
               {/* Course Selection */}
               <div className="space-y-2">
                 <Label htmlFor="course">Course *</Label>
-                <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                <Select value={selectedCourse} onValueChange={setSelectedCourse} disabled={isLoadingCourses}>
                   <SelectTrigger id="course">
-                    <SelectValue placeholder="Select a course" />
+                    <SelectValue placeholder={isLoadingCourses ? "Loading courses..." : "Select a course"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {courses.map((course) => (
-                      <SelectItem key={course.id} value={course.id}>
-                        {course.title}
-                      </SelectItem>
-                    ))}
+                    {courses.length === 0 && !isLoadingCourses ? (
+                      <div className="p-2 text-sm text-gray-500">
+                        No courses available. <a href="/teacher/courses" className="text-blue-600 underline">Create a course first</a>.
+                      </div>
+                    ) : (
+                      courses.map((course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.title}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 {selectedCourseData && (
                   <p className="text-sm text-gray-600">
                     {selectedCourseData.materials.length} material(s) available
+                  </p>
+                )}
+                {courses.length === 0 && !isLoadingCourses && (
+                  <p className="text-sm text-blue-600">
+                    <a href="/teacher/courses" className="underline">Create a course</a> to generate quizzes.
                   </p>
                 )}
               </div>
