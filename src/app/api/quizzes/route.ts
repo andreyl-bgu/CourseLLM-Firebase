@@ -46,8 +46,14 @@ export async function GET(req: Request) {
     fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:35',message:'GET /api/quizzes error',data:{error:error instanceof Error?error.message:'Unknown',code:(error as any)?.code||'N/A',stack:(error as Error)?.stack?.substring(0,200)||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
     // #endregion
     console.error('[API] GET /api/quizzes error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = (error as any)?.code || 'UNKNOWN';
     return NextResponse.json(
-      { error: 'Failed to fetch quizzes' },
+      { 
+        error: 'Failed to fetch quizzes',
+        message: errorMessage,
+        code: errorCode
+      },
       { status: 500 }
     );
   }

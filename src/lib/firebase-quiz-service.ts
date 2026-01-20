@@ -239,11 +239,25 @@ export const FirebaseQuizService = {
     try {
       if (isServer) {
         // Server-side: use Admin SDK
+        // Try with orderBy first, but fallback to simple query if index doesn't exist
         const adminDbInstance = getAdminFirestore();
-        const snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
-          .where('createdBy', '==', teacherId)
-          .orderBy('createdAt', 'desc')
-          .get();
+        let snapshot;
+        try {
+          snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
+            .where('createdBy', '==', teacherId)
+            .orderBy('createdAt', 'desc')
+            .get();
+        } catch (orderByError: any) {
+          // If orderBy fails (e.g., missing index), try without it
+          if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
+            console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
+            snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
+              .where('createdBy', '==', teacherId)
+              .get();
+          } else {
+            throw orderByError;
+          }
+        }
         
         const docs = snapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
         return docs.sort((a, b) => 
