@@ -57,7 +57,17 @@ export default function GenerateQuizPage() {
           throw new Error('Failed to fetch courses');
         }
         const data = await response.json();
-        setCourses(data);
+        console.log('[QuizGenerate] Fetched courses:', {
+          count: Array.isArray(data) ? data.length : 0,
+          courses: data,
+          teacherId: firebaseUser.uid
+        });
+        // Ensure we have an array and filter out any invalid courses
+        const validCourses = Array.isArray(data) 
+          ? data.filter(c => c && c.id && c.title)
+          : [];
+        console.log('[QuizGenerate] Valid courses after filtering:', validCourses.length, validCourses);
+        setCourses(validCourses);
       } catch (error) {
         console.error('Error fetching courses:', error);
         toast({
@@ -255,20 +265,54 @@ export default function GenerateQuizPage() {
             <CardContent className="space-y-6">
               {/* Course Selection */}
               <div className="space-y-2">
-                <Label htmlFor="course">Course *</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="course">Course *</Label>
+                  {!isLoadingCourses && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        if (!firebaseUser?.uid) return;
+                        setIsLoadingCourses(true);
+                        try {
+                          const response = await fetch(`/api/courses?teacherId=${firebaseUser.uid}`);
+                          if (!response.ok) {
+                            throw new Error('Failed to fetch courses');
+                          }
+                          const data = await response.json();
+                          const validCourses = Array.isArray(data) 
+                            ? data.filter(c => c && c.id && c.title)
+                            : [];
+                          setCourses(validCourses);
+                          console.log('[QuizGenerate] Refreshed courses:', validCourses.length);
+                        } catch (error) {
+                          console.error('Error refreshing courses:', error);
+                        } finally {
+                          setIsLoadingCourses(false);
+                        }
+                      }}
+                    >
+                      <Loader2 className="h-3 w-3 mr-1" />
+                      Refresh
+                    </Button>
+                  )}
+                </div>
                 <Select value={selectedCourse} onValueChange={setSelectedCourse} disabled={isLoadingCourses}>
                   <SelectTrigger id="course">
-                    <SelectValue placeholder={isLoadingCourses ? "Loading courses..." : "Select a course"} />
+                    <SelectValue placeholder={isLoadingCourses ? "Loading courses..." : `Select a course (${courses.length} available)`} />
                   </SelectTrigger>
                   <SelectContent>
-                    {courses.length === 0 && !isLoadingCourses ? (
+                    {isLoadingCourses ? (
+                      <div className="p-2 text-sm text-gray-500">Loading courses...</div>
+                    ) : courses.length === 0 ? (
                       <div className="p-2 text-sm text-gray-500">
                         No courses available. <a href="/teacher/courses" className="text-blue-600 underline">Create a course first</a>.
                       </div>
                     ) : (
                       courses.map((course) => (
                         <SelectItem key={course.id} value={course.id}>
-                          {course.title}
+                          {course.title || `Course ${course.id}`}
                         </SelectItem>
                       ))
                     )}
@@ -276,7 +320,12 @@ export default function GenerateQuizPage() {
                 </Select>
                 {selectedCourseData && (
                   <p className="text-sm text-gray-600">
-                    {selectedCourseData.materials.length} material(s) available
+                    {selectedCourseData.materials?.length || 0} material(s) available
+                  </p>
+                )}
+                {courses.length > 0 && !isLoadingCourses && (
+                  <p className="text-xs text-gray-500">
+                    {courses.length} course{courses.length !== 1 ? 's' : ''} loaded
                   </p>
                 )}
                 {courses.length === 0 && !isLoadingCourses && (

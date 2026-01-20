@@ -44,6 +44,7 @@ Main runtime pieces
 3) React client provider — `src/components/AuthProviderClient.tsx`
 
 - Purpose: centralizes auth state (Firebase user), loads Firestore `users/{uid}` profile, computes `onboardingRequired`, and exposes actions via context.
+- **Critical:** On mount, calls `getRedirectResult(auth)` to handle OAuth redirects when popup-based sign-in fails. This ensures users who authenticate via redirect (due to popup blockers, COOP/COEP policies, etc.) are properly signed in when they return to the app.
 
 - Context API (via `useAuth()`):
   - `firebaseUser: User | null` — raw Firebase user from onAuthStateChanged

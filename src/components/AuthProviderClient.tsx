@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
+import { onAuthStateChanged, getRedirectResult, type User as FirebaseUser } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import * as authService from "@/lib/authService";
@@ -83,6 +83,26 @@ export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ ch
       setLoading(false);
       return;
     }
+    
+    // Handle OAuth redirect result (when popup fails and redirect is used)
+    // This must be called before onAuthStateChanged to process the redirect
+    let redirectHandled = false;
+    getRedirectResult(auth)
+      .then((result) => {
+        redirectHandled = true;
+        if (result) {
+          // User successfully signed in via redirect
+          // onAuthStateChanged will be triggered automatically
+          console.log("Redirect sign-in successful:", result.user.uid);
+        }
+      })
+      .catch((error) => {
+        redirectHandled = true;
+        // Only log if it's not a "no redirect pending" error
+        if (error.code !== "auth/no-auth-event") {
+          console.error("Redirect sign-in error:", error);
+        }
+      });
     
     const unsub = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
