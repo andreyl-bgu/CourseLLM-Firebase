@@ -144,16 +144,66 @@ export default function GenerateQuizPage() {
       return;
     }
 
+    // Validate course has content
+    if (!selectedCourseData) {
+      toast({
+        title: 'Course Not Found',
+        description: 'The selected course could not be found. Please select a different course.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Get course content from materials if available
+    const materials = selectedCourseData?.materials || [];
+    const materialsContent = materials
+      .map((m) => `${m.title}\n${m.content}`)
+      .join('\n\n') || '';
+
+    const learningObjectives = selectedCourseData?.learningObjectives || '';
+
+    console.log('[QuizGenerate] Course selected:', selectedCourseData?.title);
+    console.log('[QuizGenerate] Materials count:', materials.length);
+    console.log('[QuizGenerate] Materials content length:', materialsContent.length);
+
+    // Build course content for AI generation
+    // If materials exist, use them; otherwise, use course metadata as fallback
+    let finalCourseContent = '';
+    let finalLearningObjectives = '';
+
+    if (materialsContent.trim() && materials.length > 0) {
+      // Use uploaded materials
+      finalCourseContent = materialsContent.trim();
+      finalLearningObjectives = learningObjectives.trim() || 
+        `Assess understanding of ${selectedCourseData.title} concepts and principles.`;
+      
+      console.log('[QuizGenerate] Using course materials for quiz generation:', materials.length, 'materials');
+    } else {
+      // No materials - use course metadata as content for AI generation
+      const courseTitle = selectedCourseData?.title || '';
+      const courseDescription = selectedCourseData?.description || '';
+      const courseSkills = selectedCourseData?.learningSkills || '';
+      const courseTrajectories = selectedCourseData?.learningTrajectories || '';
+
+      // Build content from course metadata
+      const courseMetadata = [
+        courseTitle && `Course: ${courseTitle}`,
+        courseDescription && `Description: ${courseDescription}`,
+        learningObjectives && `Learning Objectives: ${learningObjectives}`,
+        courseSkills && `Skills: ${courseSkills}`,
+        courseTrajectories && `Learning Path: ${courseTrajectories}`,
+      ].filter(Boolean).join('\n\n');
+
+      finalCourseContent = courseMetadata || `Course content for ${courseTitle || 'this course'}`;
+      finalLearningObjectives = learningObjectives.trim() || 
+        `Assess understanding of ${courseTitle || 'course'} concepts and principles based on the quiz title and topics specified.`;
+      
+      console.log('[QuizGenerate] Using course metadata as fallback (no materials available)');
+    }
+
     setIsGenerating(true);
 
     try {
-      // Get course content
-      const courseContent = selectedCourseData?.materials
-        .map((m) => `${m.title}\n${m.content}`)
-        .join('\n\n') || '';
-
-      const learningObjectives = selectedCourseData?.learningObjectives || '';
-
       // Parse topics
       const topicList = topics
         .split(',')
@@ -164,16 +214,25 @@ export default function GenerateQuizPage() {
       // Request 80% more than needed to ensure we get the desired number after filtering
       const requestedQuestions = Math.ceil(numberOfQuestions * 1.8);
       
+      console.log('[QuizGenerate] Sending request with:', {
+        courseContentLength: finalCourseContent.length,
+        learningObjectivesLength: finalLearningObjectives.length,
+        numberOfQuestions: requestedQuestions,
+        difficulty,
+        topics: topicList
+      });
+      
       // Call API route to generate quiz
       const response = await fetch('/api/quizzes/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          courseContent,
-          learningObjectives,
+          courseContent: finalCourseContent,
+          learningObjectives: finalLearningObjectives,
           numberOfQuestions: requestedQuestions,
           difficulty,
           topics: topicList.length > 0 ? topicList : undefined,
+          quizTitle: quizTitle, // Pass quiz title to help AI understand context
         }),
       });
 
