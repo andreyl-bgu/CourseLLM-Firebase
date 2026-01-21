@@ -1,12 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 // Note: These tests use localStorage-based auth bypass for testing.
-// The first login test is skipped because the test auth always creates a complete profile.
-
-test.skip('1 - first login redirects to onboarding', async ({ page }) => {
-  // This test requires real Firebase auth to work properly
-  // With the localStorage bypass, we always have a complete profile
-});
 
 test('2 - teacher only access to /teacher pages', async ({ page }) => {
   // Login as teacher using localStorage auth bypass

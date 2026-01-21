@@ -1,5 +1,10 @@
 # CourseLLM
 
+FYI
+In case you check the code usign the workspace - please add the domain url of github workspace to the domain list of the firebase - itherwize the login will not work - it's the security limitation of the firebase that can't be workarounded because of security reasons:
+Please send us the workspace url you use - and we'll add it.
+Or you can add domain you want to test by yourself in firebase - we've sent you the invitation to be the owner to your email.
+
 ## Purpose
 CourseLLM (Coursewise) is an educational platform that leverages AI to provide personalized learning experiences. 
 It is intended for Undergraduate University Courses and is being tested on Computer Science courses.
@@ -31,6 +36,23 @@ More technical details are available in openspec/project.md
 ---
 
 ## Getting Started
+
+### ⚠️ Required Security Files (Manual Setup)
+
+**For security purposes, two configuration files are NOT included in the repository and must be added manually before running the application:**
+
+| File | Purpose | Location |
+|------|---------|----------|
+| `.env.local` | Firebase API keys and configuration | Project root (`/quiz/.env.local`) |
+| `service-account.json` | Firebase Admin SDK credentials | Project root (`/quiz/service-account.json`) |
+
+**These files have been sent separately via email.** Place them in the project root directory before proceeding.
+
+> **Security Note:** Both files are listed in `.gitignore` and should **NEVER** be committed to the repository. They contain sensitive credentials that could compromise the Firebase project if exposed.
+
+If you haven't received these files, please contact the project maintainers.
+
+---
 
 ### Prerequisites
 
@@ -178,6 +200,28 @@ npm run test:e2e:report
 ```
 
 **Note:** E2E tests require the dev server to be running. Playwright config will start it automatically if not already running.
+
+**Recommended (most reliable) local flow (headed + explicit env):**
+
+1. **Start the dev server with test auth + service account** (required for E2E)
+
+```bash
+ENABLE_TEST_AUTH=true FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json pnpm dev
+```
+
+2. **Run a single headed Playwright test** (so you can watch the browser)
+
+```bash
+CI= pnpm exec playwright test tests/auth.spec.ts -g "teacher only access" --headed --workers=1 --reporter=line
+```
+
+3. **Open the HTML report**
+
+```bash
+pnpm exec playwright show-report
+```
+
+If you prefer opening the file directly, it is generated at `playwright-report/index.html`.
 
 ### Type Checking
 

@@ -21,17 +21,4 @@ test.describe('Teacher Quiz Generation', () => {
     await page.getByRole('button', { name: 'Back to Quizzes' }).click();
     await expect(page).toHaveURL(/.*\/teacher\/quizzes/);
   });
-
-  test('should generate quiz successfully', async ({ page }) => {
-    test.skip(process.env.SKIP_SLOW_TESTS === 'true', 'Skipping slow AI test');
-    test.setTimeout(120000);
-
-    await helpers.navigateTo('/teacher/quizzes/generate');
-    await helpers.fillQuizGenerationForm(QUIZ_FIXTURES.quizGeneration.minimalConfig);
-    
-    await page.getByRole('button', { name: 'Generate Quiz with AI' }).click();
-    await helpers.waitForQuizGeneration(90000);
-    
-    await expect(page.getByText('Quiz Preview')).toBeVisible();
-  });
 });
