@@ -52,6 +52,27 @@ try {
 
 // Initialize Auth
 export const auth = getAuth(app);
+
+// Connect to Auth emulator only if explicitly enabled via environment variable
+if (typeof window !== 'undefined') {
+  const useEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true' || 
+                      process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  
+  if (useEmulator) {
+    const { connectAuthEmulator } = require('firebase/auth');
+    const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099';
+    try {
+      connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
+      console.log(`[Firebase] Connected to Auth emulator at http://${authEmulatorHost}`);
+    } catch (err: any) {
+      // Emulator might already be connected or connection failed
+      if (!err.message?.includes('already been called') && !err.message?.includes('already connected')) {
+        console.warn('[Firebase] Could not connect to Auth emulator:', err.message);
+      }
+    }
+  }
+}
+
 export const googleProvider = new GoogleAuthProvider();
 
 // Initialize Firestore

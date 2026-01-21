@@ -1,50 +1,39 @@
 import { auth, googleProvider } from "./firebase";
-import { signInWithPopup, signOut, signInWithRedirect } from "firebase/auth";
+import { signOut, signInWithRedirect } from "firebase/auth";
 
 export async function signInWithGoogle() {
   // #region agent log
   if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:6',message:'signInWithGoogle called',data:{authAppName:auth.app.name,origin:window.location.origin,hostname:window.location.hostname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:6',message:'signInWithGoogle called - using redirect only',data:{authAppName:auth.app.name,origin:window.location.origin,hostname:window.location.hostname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
   }
   // #endregion
+  
+  // Use redirect-only flow to avoid popup blocking issues
+  // This is more reliable across different browsers and environments
   try {
-    const res = await signInWithPopup(auth, googleProvider);
     // #region agent log
     if (typeof window !== 'undefined') {
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:9',message:'signInWithPopup succeeded',data:{userId:res.user.uid},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:12',message:'Calling signInWithRedirect (no popup attempt)',data:{url:window.location.href,authDomain:auth.app.options.authDomain},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
     }
     // #endregion
-    return res.user;
-  } catch (err: any) {
+    await signInWithRedirect(auth, googleProvider);
+    // Note: signInWithRedirect will navigate away, so this return won't execute
+    // The redirect result will be handled by getRedirectResult() in AuthProviderClient
     // #region agent log
     if (typeof window !== 'undefined') {
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:12',message:'signInWithPopup error',data:{errorCode:err?.code||'N/A',errorMessage:err?.message||'Unknown',errorName:err?.name||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:17',message:'signInWithRedirect completed (should navigate)',data:{url:window.location.href},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
     }
     // #endregion
-    // Check for popup-blocked error code explicitly
-    const errorCode = err?.code || "";
-    const msg = err?.message || "";
-    
-    // Handle popup-blocked errors: fall back to redirect-based sign-in
-    if (errorCode === "auth/popup-blocked" || 
-        errorCode === "auth/popup-closed-by-user" ||
-        /cross-?origin|opener|blocked a frame|window\.closed|popup.*blocked/i.test(msg)) {
-      console.warn("Popup blocked or closed, falling back to redirect sign-in.");
-      // #region agent log
-      if (typeof window !== 'undefined') {
-        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:29',message:'Falling back to redirect sign-in',data:{errorCode,originalError:msg},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      }
-      // #endregion
-      try {
-        await signInWithRedirect(auth, googleProvider);
-        return null as any; // control will not reach here in redirect flow
-      } catch (redirectErr) {
-        handleAuthError(redirectErr);
-        throw redirectErr;
-      }
+    return null as any;
+  } catch (redirectErr: any) {
+    console.error("Redirect sign-in failed:", redirectErr);
+    // #region agent log
+    if (typeof window !== 'undefined') {
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:23',message:'signInWithRedirect failed',data:{errorCode:redirectErr?.code||'N/A',errorMessage:redirectErr?.message||'Unknown',url:window.location.href},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
     }
-    handleAuthError(err);
-    throw err;
+    // #endregion
+    handleAuthError(redirectErr);
+    throw redirectErr;
   }
 }
 

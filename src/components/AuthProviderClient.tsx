@@ -23,7 +23,7 @@ type AuthContextValue = {
   firebaseUser: FirebaseUser | null;
   profile: Profile | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<any>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<Profile | null>;
   onboardingRequired: boolean;
@@ -84,38 +84,133 @@ export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
     
-    // Handle OAuth redirect result (when popup fails and redirect is used)
-    // This must be called before onAuthStateChanged to process the redirect
-    let redirectHandled = false;
-    getRedirectResult(auth)
-      .then((result) => {
-        redirectHandled = true;
-        if (result) {
-          // User successfully signed in via redirect
-          // onAuthStateChanged will be triggered automatically
-          console.log("Redirect sign-in successful:", result.user.uid);
-        }
-      })
-      .catch((error) => {
-        redirectHandled = true;
-        // Only log if it's not a "no redirect pending" error
-        if (error.code !== "auth/no-auth-event") {
-          console.error("Redirect sign-in error:", error);
-        }
-      });
+    // Initialize auth state
+    // First, check for OAuth redirect result (when popup fails and redirect is used)
+    // This MUST be called before onAuthStateChanged to process the redirect
+    // and MUST be awaited to avoid race conditions
+    let authStateListener: (() => void) | null = null;
     
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
-      setFirebaseUser(user);
-      if (user) {
-        await loadProfile(user.uid);
-      } else {
-        setProfile(null);
-        setOnboardingRequired(false);
+    (async () => {
+      // #region agent log
+      if (typeof window !== 'undefined') {
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:93',message:'Starting auth initialization',data:{url:window.location.href,hostname:window.location.hostname,pathname:window.location.pathname,currentUser:auth.currentUser?.uid||null,hasAuthState:!!auth.currentUser},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       }
-      setLoading(false);
-    });
-    return () => unsub();
+      // #endregion
+      
+      // Check if we might be returning from a redirect (URL might have auth params)
+      const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const mightBeRedirect = urlParams && (urlParams.has('apiKey') || urlParams.has('mode') || window.location.hash.includes('auth'));
+      
+      try {
+        // Check for redirect result first - this processes OAuth redirects
+        // #region agent log
+        if (typeof window !== 'undefined') {
+          fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:96',message:'Calling getRedirectResult',data:{url:window.location.href,hasCurrentUser:!!auth.currentUser,mightBeRedirect},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        }
+        // #endregion
+        const redirectResult = await getRedirectResult(auth);
+        // #region agent log
+        if (typeof window !== 'undefined') {
+          fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:100',message:'getRedirectResult completed',data:{hasResult:!!redirectResult,userId:redirectResult?.user?.uid||null,providerId:redirectResult?.providerId||null,url:window.location.href,currentUserAfter:auth.currentUser?.uid||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        }
+        // #endregion
+        if (redirectResult) {
+          // User successfully signed in via redirect
+          console.log("Redirect sign-in successful:", redirectResult.user.uid);
+          // #region agent log
+          if (typeof window !== 'undefined') {
+            fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:105',message:'Redirect sign-in successful',data:{userId:redirectResult.user.uid,email:redirectResult.user.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          }
+          // #endregion
+          // onAuthStateChanged will be triggered automatically, but we set up the listener below
+        } else if (mightBeRedirect || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) {
+          // getRedirectResult returned null but we might be returning from redirect
+          // This can happen when third-party cookies are blocked (common on localhost)
+          // Wait a bit and check if auth.currentUser is set (sometimes onAuthStateChanged fires even if getRedirectResult doesn't work)
+          // #region agent log
+          if (typeof window !== 'undefined') {
+            fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:113',message:'getRedirectResult null but might be redirect, waiting for auth state',data:{url:window.location.href,isLocalhost:window.location.hostname==='localhost'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          }
+          // #endregion
+          // Give onAuthStateChanged a chance to fire (it will be set up below)
+          // Also check auth.currentUser directly after a short delay as fallback
+          const checkUser = () => {
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              // #region agent log
+              if (typeof window !== 'undefined') {
+                fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:121',message:'Fallback: found user via auth.currentUser after redirect',data:{userId:currentUser.uid,email:currentUser.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              }
+              // #endregion
+              // Manually trigger the auth state change handler
+              setFirebaseUser(currentUser);
+              loadProfile(currentUser.uid);
+              return true;
+            }
+            return false;
+          };
+          
+          // Check immediately
+          const foundImmediately = checkUser();
+          // #region agent log
+          if (typeof window !== 'undefined' && !foundImmediately) {
+            fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:128',message:'Fallback: auth.currentUser check returned false, will retry',data:{url:window.location.href},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          }
+          // #endregion
+          if (!foundImmediately) {
+            // Check again after a delay (onAuthStateChanged might fire in the meantime)
+            setTimeout(() => {
+              const foundAfterDelay = checkUser();
+              // #region agent log
+              if (typeof window !== 'undefined' && !foundAfterDelay) {
+                fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:135',message:'Fallback: auth.currentUser still null after delay - redirect flow failed',data:{url:window.location.href,currentUser:auth.currentUser?.uid||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+              }
+              // #endregion
+            }, 1500);
+          }
+        }
+      } catch (error: any) {
+        // #region agent log
+        if (typeof window !== 'undefined') {
+          fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:130',message:'getRedirectResult error',data:{errorCode:error?.code||'N/A',errorMessage:error?.message||'Unknown',url:window.location.href,isNoAuthEvent:error?.code==='auth/no-auth-event'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        }
+        // #endregion
+        // Only log if it's not a "no redirect pending" error (which is normal)
+        if (error.code !== "auth/no-auth-event" && error.code !== "auth/operation-not-allowed") {
+          console.error("Redirect sign-in error:", error.code, error.message);
+        }
+      }
+      
+      // Now set up the auth state listener
+      // This will fire for both popup and redirect sign-ins
+      // #region agent log
+      if (typeof window !== 'undefined') {
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:141',message:'Setting up onAuthStateChanged listener',data:{currentUserBeforeListener:auth.currentUser?.uid||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      }
+      // #endregion
+      authStateListener = onAuthStateChanged(auth, async (user) => {
+        // #region agent log
+        if (typeof window !== 'undefined') {
+          fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:145',message:'onAuthStateChanged fired',data:{hasUser:!!user,userId:user?.uid||null,email:user?.email||null,url:window.location.href},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        }
+        // #endregion
+        setLoading(true);
+        setFirebaseUser(user);
+        if (user) {
+          await loadProfile(user.uid);
+        } else {
+          setProfile(null);
+          setOnboardingRequired(false);
+        }
+        setLoading(false);
+      });
+    })();
+    
+    return () => {
+      if (authStateListener) {
+        authStateListener();
+      }
+    };
   }, []);
 
   async function loadProfile(uid: string): Promise<Profile | null> {
@@ -186,7 +281,7 @@ export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ ch
   }
 
   async function handleSignInWithGoogle() {
-    await authService.signInWithGoogle();
+    return await authService.signInWithGoogle();
   }
   async function handleSignOut() {
     await authService.signOutUser();

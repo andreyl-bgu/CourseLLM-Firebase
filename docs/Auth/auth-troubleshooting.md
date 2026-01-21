@@ -2,9 +2,9 @@
 
 ## Common Issues and Solutions
 
-### 🔴 Critical Issue: Missing Redirect Result Handling
+### 🔴 Critical Issue: Missing Redirect Result Handling (FIXED)
 
-**Problem:** When popup-based sign-in fails (due to popup blockers, COOP/COEP policies, or third-party cookie restrictions), the code falls back to `signInWithRedirect`. However, the app **never calls `getRedirectResult()`** to process the authentication result when the user returns from Google's OAuth page.
+**Problem:** When popup-based sign-in fails (due to popup blockers, COOP/COEP policies, or third-party cookie restrictions), the code falls back to `signInWithRedirect`. However, the app **was not properly calling `getRedirectResult()`** to process the authentication result when the user returns from Google's OAuth page.
 
 **Symptoms:**
 - User clicks "Sign in with Google"
@@ -13,7 +13,16 @@
 - No error messages shown
 - Works on some computers but not others (depends on browser settings)
 
-**Solution:** The app must call `getRedirectResult()` on page load to handle OAuth redirects. See the fix in `src/components/AuthProviderClient.tsx`.
+**Solution (IMPLEMENTED):** 
+- The app now properly calls and **awaits** `getRedirectResult()` before setting up the auth state listener
+- This ensures redirect results are processed before any other auth state changes
+- Improved error detection for popup blocking scenarios
+- Better user-facing error messages
+
+**Additional fixes:**
+- Improved popup error detection (catches more error codes and patterns)
+- Better error messages shown to users
+- Proper async/await handling to avoid race conditions
 
 ---
 
@@ -154,14 +163,17 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
    - Open DevTools (F12)
    - Look for Firebase/auth errors
    - Check Network tab for failed requests
+   - Look for "Redirect sign-in successful" or "Redirect sign-in error" messages
 
 2. **Check Firebase config** is loaded
    - Look for "Firebase config check" logs in console
    - Verify all config values are present (not `undefined`)
+   - Check that `authDomain` matches your actual domain
 
 3. **Test popup vs redirect**
    - Try allowing popups and see if it works
-   - Check if redirect flow works (after fix)
+   - Block popups and verify redirect fallback works
+   - Check browser console for "Falling back to redirect sign-in" message
 
 4. **Verify environment variables**
    ```bash
@@ -179,6 +191,27 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
    import { auth } from '@/lib/firebase'
    console.log('Current user:', auth.currentUser)
    ```
+
+6. **Check for redirect result**
+   ```javascript
+   // In browser console after returning from Google OAuth:
+   import { auth, googleProvider } from '@/lib/firebase'
+   import { getRedirectResult } from 'firebase/auth'
+   getRedirectResult(auth).then(result => {
+     console.log('Redirect result:', result)
+   })
+   ```
+
+7. **Check browser cookie/storage settings**
+   - Open DevTools → Application → Cookies
+   - Verify cookies are being set for your domain
+   - Check if third-party cookies are blocked (Settings → Privacy)
+   - Try in incognito/private mode to test without extensions
+
+8. **Verify authorized domains in Firebase Console**
+   - Go to Firebase Console → Authentication → Settings → Authorized domains
+   - Ensure your domain (and localhost for dev) is listed
+   - Wait a few minutes after adding domains for changes to propagate
 
 ---
 
