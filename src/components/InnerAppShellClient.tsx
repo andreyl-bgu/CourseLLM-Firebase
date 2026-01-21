@@ -28,6 +28,7 @@ export default function InnerAppShellClient({ children, role = "student" }: Prop
     { href: '/teacher', label: 'Dashboard', icon: <LayoutDashboard /> },
     { href: '/teacher/courses', label: 'Courses', icon: <BookOpen /> },
     { href: '/teacher/quizzes', label: 'Quizzes', icon: <ClipboardList /> },
+    { href: '/teacher/monitoring', label: 'Monitoring', icon: <BarChart2 /> },
   ];
 
   const navItems = role === 'teacher' ? teacherNavItems : studentNavItems;

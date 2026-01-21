@@ -1,9 +1,154 @@
 # CourseLLM
 
-FYI
-In case you check the code usign the workspace - please add the domain url of github workspace to the domain list of the firebase - itherwize the login will not work - it's the security limitation of the firebase that can't be workarounded because of security reasons:
-Please send us the workspace url you use - and we'll add it.
-Or you can add domain you want to test by yourself in firebase - we've sent you the invitation to be the owner to your email.
+## PR Checklist (How to run this repo)
+
+This section is a reviewer-oriented checklist that answers: **what to run**, **where to run it**, and **which environment variables/files are required**.
+
+### Codespace / GitHub Workspace
+
+- **Login works only if the workspace domain is allowed** in Firebase Auth.
+  - **Action**: Firebase Console → **Authentication** → **Settings** → **Authorized domains** → add your Codespace/workspace domain.
+  - If you don’t have access, send us the workspace URL and we’ll add it (owners have been invited via email).
+
+### Required security files (manual setup)
+
+Two files are required and are **not** in the repo (sent separately via email). Place both in the project root:
+- **`.env.local`** (client Firebase config + local dev flags)
+- **`service-account.json`** (Firebase Admin SDK credentials for server-side + E2E)
+
+Both files are in `.gitignore` and must **never** be committed.
+
+### Environment variables (what to set where)
+
+#### Local development (`.env.local`)
+
+Client Firebase config (required):
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` (optional)
+
+Test auth + Admin SDK (local only; required for Playwright):
+- `ENABLE_TEST_AUTH=true` (**never enable in production**)
+- `FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json`
+  - Alternative: `FIREBASE_SERVICE_ACCOUNT_JSON={...}`
+
+Genkit / AI (local):
+- `GOOGLE_API_KEY=...` (Gemini/Genkit API key)
+
+Optional:
+- `NEXT_PUBLIC_QUIZ_SERVICE_URL=` (if routing Quiz API to an external microservice)
+
+#### Production (Firebase App Hosting)
+
+- Production environment variables are configured via **Firebase App Hosting** (see `apphosting.yaml`).
+- **Do not use** a committed `.env` file (this repo ignores `.env*`).
+- **Never enable** `ENABLE_TEST_AUTH` in production.
+
+### Install dependencies (where + which tool?)
+
+From the repo root (`/quiz`):
+
+```bash
+pnpm install
+```
+
+Notes:
+- Node **20+** is required (see `package.json` → `engines.node`).
+- `pnpm` is the recommended package manager (repo pins it via `packageManager` in `package.json`).
+- Playwright is already a dependency; browser binaries may need installation:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+### How to run locally (dev)
+
+```bash
+pnpm dev
+```
+
+App runs at `http://localhost:9002`.
+
+### Genkit (AI) — how to run
+
+In a separate terminal:
+
+```bash
+pnpm genkit:watch
+```
+
+Requires `GOOGLE_API_KEY` in your environment.
+
+### How to run tests
+
+#### Unit tests (Jest)
+
+```bash
+pnpm test
+pnpm test:watch
+pnpm test:coverage
+```
+
+#### End-to-end tests (Playwright)
+
+Playwright will start the dev server automatically with:
+`ENABLE_TEST_AUTH=true FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json npm run dev`
+(see `playwright.config.ts`).
+
+Recommended deterministic flow (headed + explicit env):
+
+```bash
+# 1) Start server (required for E2E)
+ENABLE_TEST_AUTH=true FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json pnpm dev
+
+# 2) Run a single headed test (note: CI= unsets CI completely)
+CI= pnpm exec playwright test tests/auth.spec.ts -g "teacher only access" --headed --workers=1 --reporter=line
+```
+
+### API documentation (where is it?)
+
+- **OpenAPI**: `openspec/specs/quiz/openapi.yaml` (view in [Swagger Editor](https://editor.swagger.io/))
+- **API reference**: `openspec/specs/quiz/api-reference.md`
+
+### Login and roles (how does signup work?)
+
+- Login page: `/login` (Google Sign-In).
+- First login creates no profile automatically; users complete `/onboarding`.
+- Onboarding writes `users/{uid}` in Firestore and assigns role:
+  - `teacher` → `/teacher`
+  - `student` → `/student`
+
+Test-only bypass (used by Playwright):
+- `/test/signin?uid=test-teacher&role=teacher&redirect=/teacher`
+- `/test/signin?uid=test-student&role=student&redirect=/student`
+
+### Emulators (important note)
+
+The repo contains emulator configuration in `firebase.json`, but the **browser Firebase SDK is not currently wired to connect to emulators by default** (no `connectFirestoreEmulator/connectAuthEmulator` in `src/`).
+
+Practical guidance:
+- Most reliable local flow today is **real Firebase project + `.env.local` + service account**.
+
+### DataConnect (do we use it?)
+
+DataConnect is configured, but the Next.js app does **not** currently import `src/dataconnect-generated` (no references found in `src/`), so it is **configured but not actively used by the web app** right now.
+
+Where it lives:
+- Config: `dataconnect/dataconnect.yaml`
+- Schema: `dataconnect/schema/schema.gql`
+- Connector/generation: `dataconnect/example/connector.yaml` (generates `src/dataconnect-generated/` and `src/dataconnect-admin-generated/`, both ignored)
+
+### Repo hygiene checks
+
+- **Specs present**: `openspec/` contains quiz specs, routes/components docs, and OpenAPI.
+- **`.gitignore` verified**: secrets (`.env*`, `service-account.json`) and generated artifacts are ignored.
+- **AI tooling files**:
+  - `CLINE.md` and `.clinerules/` are tooling/workflow docs; not required for runtime.
+  - `database.rules.json` is referenced by `firebase.json` (Realtime Database rules). Remove only if you confirm RTDB is not used.
 
 ## Purpose
 CourseLLM (Coursewise) is an educational platform that leverages AI to provide personalized learning experiences. 
@@ -80,7 +225,7 @@ If you haven't received these files, please contact the project maintainers.
    
    Create a `.env.local` file in the root directory:
    ```bash
-   cp .env.example .env.local  # if .env.example exists
+   cp .env.local.example .env.local
    ```
    
    Required environment variables:
@@ -154,6 +299,8 @@ For local development with Firebase emulators:
 3. **Configure for emulators** (if needed)
    
    Update your Firebase config to point to emulators when running locally.
+
+> **Important:** The browser Firebase SDK is not currently wired to automatically connect to emulators (no `connectFirestoreEmulator/connectAuthEmulator` in `src/`). Running emulators alone does not force the web app to use them.
 
 ### Building for Production
 
@@ -293,6 +440,46 @@ See [`docs/features/QUIZ_README.md`](docs/features/QUIZ_README.md) for detailed 
 
 ---
 
+## Monitoring & Operations
+
+This project uses **two layers of monitoring**:
+
+### 1) In-app Monitoring (Teacher)
+
+Route: **`/teacher/monitoring`** (teacher-only)
+
+This page shows **instance-level** runtime health/usage for the currently running Node.js process:
+- CPU usage (process-based estimate)
+- Memory usage (host + Node process heap/RSS)
+- Uptime (system + process)
+- Health endpoint status (`/api/health`)
+
+API endpoints:
+- **`GET /api/monitoring?format=raw`**: numeric values
+- **`GET /api/monitoring?format=formatted`**: human-readable strings
+- **`GET /api/health`**: lightweight liveness check
+
+**Important limitations:** In production, App Hosting/Cloud Run may run multiple instances. The in-app dashboard reflects only **one instance** at a time and cannot report total platform usage, Firestore costs, Storage usage, or AI spend.
+
+### 2) Production Monitoring (Firebase / Google Cloud)
+
+Use cloud dashboards for the platform-wide view:
+- **Firebase Console**: App Hosting status, Functions logs, Firestore usage
+- **Google Cloud Monitoring**: request rate/latency, error rate (5xx), instance CPU/memory, uptime checks
+- **Logs Explorer / Error Reporting**: exceptions, regressions, and correlation with deployments
+
+### Cost Controls (Budgets & Alerts)
+
+To avoid cost surprises:
+- Create **Cloud Billing Budgets** with email alerts (e.g., 50%, 90%, 100%)
+- Add alerts (via Monitoring) for spikes in:
+  - 5xx errors
+  - request latency
+  - Firestore reads/writes
+  - AI generation traffic/failures
+
+---
+
 ## Deployment
 
 ### Firebase Hosting + App Hosting
@@ -363,6 +550,7 @@ lsof -ti:9002 | xargs kill -9
 
 - [OpenSpec Documentation](openspec/AGENTS.md)
 - [Quiz Feature Documentation](docs/features/QUIZ_README.md)
+- [Project Report & AI Process Analysis](docs/project-report-ai-process.md)
 - [E2E Test Documentation](tests/README.md)
 - [Firebase Documentation](https://firebase.google.com/docs)
 - [Next.js Documentation](https://nextjs.org/docs)
