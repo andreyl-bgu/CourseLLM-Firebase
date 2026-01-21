@@ -45,6 +45,121 @@ The Quiz feature follows a modular microservice architecture pattern with clear 
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### System Integration Architecture
+
+The Quiz feature operates within the broader CourseWise platform, integrating with authentication, course management, and analytics services.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CourseWise Platform                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                        Shared Services Layer                           │  │
+│  │  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                  │  │
+│  │  │  Firebase   │   │  Firebase   │   │   User      │                  │  │
+│  │  │    Auth     │   │  Firestore  │   │  Profiles   │                  │  │
+│  │  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘                  │  │
+│  └─────────┼─────────────────┼─────────────────┼─────────────────────────┘  │
+│            │                 │                 │                             │
+│            └─────────────────┼─────────────────┘                             │
+│                              │                                               │
+│  ┌───────────────────────────┼───────────────────────────────────────────┐  │
+│  │                    Feature Layer                                       │  │
+│  │                           │                                            │  │
+│  │  ┌─────────────┐   ┌──────▼──────┐   ┌─────────────┐   ┌───────────┐  │  │
+│  │  │   Course    │   │             │   │  Socratic   │   │ Learning  │  │  │
+│  │  │ Management  │──→│    QUIZ     │   │    Chat     │   │Assessment │  │  │
+│  │  │             │   │   FEATURE   │   │             │   │           │  │  │
+│  │  │ - Materials │   │             │   │ - Tutoring  │   │ - Eval    │  │  │
+│  │  │ - Courses   │   │ - Generate  │   │ - Q&A       │   │ - Recom.  │  │  │
+│  │  │ - Enroll    │   │ - Take      │   │ - Guidance  │   │           │  │  │
+│  │  └─────────────┘   │ - Results   │   └─────────────┘   └───────────┘  │  │
+│  │                    │ - Analytics │                                     │  │
+│  │                    └──────┬──────┘                                     │  │
+│  │                           │                                            │  │
+│  └───────────────────────────┼────────────────────────────────────────────┘  │
+│                              │                                               │
+│  ┌───────────────────────────▼───────────────────────────────────────────┐  │
+│  │                    Analytics Layer                                     │  │
+│  │  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐      │  │
+│  │  │ Teacher         │   │ Student         │   │ Learning        │      │  │
+│  │  │ Dashboard       │   │ Progress        │   │ Trajectory      │      │  │
+│  │  └─────────────────┘   └─────────────────┘   └─────────────────┘      │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Integration Data Flows
+
+#### Input Dependencies (What Quiz Reads)
+
+| Source | Data | Purpose |
+|--------|------|---------|
+| Firebase Auth | User ID, Role | Identify user, authorize operations |
+| User Profiles | Student/Teacher data | Display names, track ownership |
+| Course Management | Course content, Materials | Generate quiz questions |
+| Course Management | Course enrollment | Filter available quizzes |
+
+#### Output Contributions (What Quiz Provides)
+
+| Destination | Data | Purpose |
+|-------------|------|---------|
+| Student Profiles | Quiz attempts, Scores | Track learning history |
+| Teacher Dashboard | Aggregated statistics | Performance analytics |
+| Analytics | Per-question metrics | Identify challenging topics |
+| Learning Trajectory | Score progression | Track improvement over time |
+
+### Shared Services
+
+#### 1. Firebase Authentication
+- **Used By**: All features including Quiz
+- **Quiz Integration**: 
+  - Validates user identity before API calls
+  - Provides user ID for attempt tracking
+  - Role determines teacher/student access
+
+#### 2. Firebase Firestore
+- **Collections Used by Quiz**:
+  - `quizzes`: Quiz definitions
+  - `quiz_attempts`: Student attempts
+- **Shared Collections**:
+  - `users`: User profiles (read)
+  - `courses`: Course data (read)
+
+#### 3. User Profiles Service
+- **Quiz Reads**: User display name, role
+- **Quiz Writes**: (Indirect) Quiz attempts linked to student ID
+- **Integration Pattern**: Quiz stores `studentId` and `createdBy` fields referencing user profiles
+
+### Cross-Feature Communication
+
+```
+Course Management                    Quiz Feature                    Analytics
+      │                                   │                              │
+      │  GET /api/courses/:id/materials   │                              │
+      │──────────────────────────────────→│                              │
+      │                                   │                              │
+      │         Course content            │                              │
+      │←──────────────────────────────────│                              │
+      │                                   │                              │
+      │                                   │  Quiz attempt completed      │
+      │                                   │─────────────────────────────→│
+      │                                   │                              │
+      │                                   │  Aggregated statistics       │
+      │                                   │←─────────────────────────────│
+      │                                   │                              │
+```
+
+### Environment Configuration for Integration
+
+| Variable | Purpose | Integration Impact |
+|----------|---------|-------------------|
+| `NEXT_PUBLIC_FIREBASE_*` | Firebase project config | Shared across all features |
+| `NEXT_PUBLIC_QUIZ_SERVICE_URL` | External Quiz API URL | Enables microservice extraction |
+| `ENABLE_TEST_AUTH` | Test authentication | Required for E2E integration tests |
+
 ## Key Components
 
 ### 1. AI Flow Service (`src/ai/flows/quiz-generation.ts`)

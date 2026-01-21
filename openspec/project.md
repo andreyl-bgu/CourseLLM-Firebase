@@ -48,7 +48,7 @@ CourseLLM-Firebase (Coursewise) is an educational platform that leverages AI to 
   - App shell layout with sidebar navigation
   - Responsive design with mobile detection hooks
 - **AI/ML Integration**:
-  - Genkit flows defined in `src/ai/flows/` (e.g., `socratic-course-chat.ts`, `personalized-learning-assessment.ts`)
+  - Genkit flows defined in `src/ai/flows/` (e.g., `socratic-course-chat.ts`, `personalized-learning-assessment.ts`, `quiz-generation.ts`)
   - AI models configured in `src/ai/genkit.ts`
   - Server-side AI function execution
 - **Data Layer**:
@@ -93,12 +93,13 @@ CourseLLM-Firebase (Coursewise) is an educational platform that leverages AI to 
 ## Domain Context
 ### Educational Platform
 - **Users**: Students and Teachers
-- **Student Workflow**: Authenticate → Onboarding (select role, department, courses) → Student dashboard → Access assessments and course materials
-- **Teacher Workflow**: Authenticate → Onboarding → Teacher dashboard → Manage courses and student progress
+- **Student Workflow**: Authenticate → Onboarding (select role, department, courses) → Student dashboard → Access assessments, take quizzes, review results, and course materials
+- **Teacher Workflow**: Authenticate → Onboarding → Teacher dashboard → Manage courses, generate and manage quizzes, view quiz analytics, monitor student progress
 - **Course Model**: Courses tracked in user profiles; DataConnect schema defines the data model
 - **AI Features**:
   - **Socratic Course Chat**: AI-powered tutoring that guides students through course concepts using Socratic questioning
   - **Personalized Learning Assessment**: AI-driven assessment of student knowledge with recommendations
+  - **Quiz Generation**: AI-powered quiz creation from course materials with multiple question types (multiple-choice, true-false, short-answer), automated grading, difficulty calibration, and learning feedback through explanations
 
 ### Firebase/Google Cloud Ecosystem
 - Project uses Firebase emulators locally for development (Firestore, Auth, Functions, DataConnect, Storage)

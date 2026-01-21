@@ -263,3 +263,149 @@ export type QuizAnswer = {
 5. **Open Book**: Quizzes are not time-limited by default (can be added later)
 6. **No Proctoring**: No anti-cheating mechanisms in initial version
 7. **Firebase Schema**: Quiz data is stored in Firestore collections with appropriate indexes
+
+## Integration
+
+### Application Flow Context
+
+The Quiz feature integrates into the CourseWise platform as a key assessment tool within the learning workflow.
+
+#### Entry Points
+- **Teacher Entry**: Teacher Dashboard → Quizzes section → Generate Quiz or Manage Quizzes
+- **Student Entry**: Student Dashboard → Quizzes section → Browse available quizzes
+
+#### Prerequisites
+- User must be authenticated via Firebase Auth
+- User must have completed onboarding (role selection, department, courses)
+- For students: Must be enrolled in at least one course to see available quizzes
+- For teachers: Must have access to courses with uploaded materials to generate quizzes
+
+#### Exit Points
+- Quiz results stored in Firestore (`quiz_attempts` collection)
+- Results available for teacher analytics dashboard
+- Student attempt history preserved for learning trajectory tracking
+
+### User Journey Positioning
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Student Journey                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Login → Onboarding → Dashboard → Select Course →                       │
+│                                        ↓                                │
+│            ┌───────────────────────────┼───────────────────────────┐    │
+│            ↓                           ↓                           ↓    │
+│     Course Materials           [QUIZ FEATURE]              Socratic Chat│
+│            │                    Take Quiz                          │    │
+│            │                    View Results                       │    │
+│            │                    Review Explanations                │    │
+│            └───────────────────────────┼───────────────────────────┘    │
+│                                        ↓                                │
+│                              Learning Progress                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Teacher Journey                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Login → Onboarding → Dashboard → Select Course →                       │
+│                                        ↓                                │
+│            ┌───────────────────────────┼───────────────────────────┐    │
+│            ↓                           ↓                           ↓    │
+│     Manage Materials           [QUIZ FEATURE]              View Progress│
+│            │                    Generate Quiz                      │    │
+│            │                    Preview & Save                     │    │
+│            │                    View Analytics                     │    │
+│            └───────────────────────────┼───────────────────────────┘    │
+│                                        ↓                                │
+│                              Student Performance Insights               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Cross-Feature Integration
+
+#### 1. With Authentication & Authorization
+- **Dependency**: Quiz requires authenticated users with assigned roles
+- **Integration**: Uses `RoleGuardClient` component for route protection
+- **Data Flow**: User ID and role from Auth Context → Quiz operations
+
+#### 2. With Course Management
+- **Dependency**: Quiz generation requires course materials
+- **Integration**: Quiz is associated with a specific course via `courseId`
+- **Data Flow**: 
+  - Course content → AI Quiz Generation
+  - Course ID → Quiz filtering for students/teachers
+
+#### 3. With Student Profiles
+- **Dependency**: Tracks quiz attempts per student
+- **Integration**: Student ID links attempts to user profile
+- **Data Flow**:
+  - Student ID → Quiz attempt creation
+  - Quiz results → Student learning history
+  - Attempt data → Performance analytics
+
+#### 4. With Analytics Dashboard
+- **Contribution**: Quiz provides data for teacher insights
+- **Data Flow**:
+  - Quiz attempts → Aggregated statistics (average scores, completion rates)
+  - Per-question performance → Identify challenging topics
+  - Student progress → Learning trajectory visualization
+
+#### 5. With Socratic Chat (Future Integration)
+- **Potential**: Failed quiz topics could trigger recommended chat sessions
+- **Data Flow** (planned):
+  - Quiz results (low scores on specific topics) → Recommended topics for Socratic dialogue
+  - Chat completion → Suggest quiz retake
+
+### Data Flow Between Features
+
+```
+┌─────────────────────┐
+│  Course Management  │
+│  (Course Materials) │
+└─────────┬───────────┘
+          │ Course content + learning objectives
+          ↓
+┌─────────────────────┐
+│   Quiz Generation   │
+│    (AI Flow)        │
+└─────────┬───────────┘
+          │ Generated quiz
+          ↓
+┌─────────────────────┐     ┌─────────────────────┐
+│   Quiz Taking       │────→│   Student Profile   │
+│   (Student UI)      │     │  (Attempt History)  │
+└─────────┬───────────┘     └─────────────────────┘
+          │ Completed attempt
+          ↓
+┌─────────────────────┐     ┌─────────────────────┐
+│   Quiz Results      │────→│  Teacher Analytics  │
+│   (Scoring)         │     │   (Dashboard)       │
+└─────────────────────┘     └─────────────────────┘
+```
+
+### Shared Data Stores
+
+| Collection | Used By | Purpose |
+|------------|---------|---------|
+| `users` | Auth, Quiz | User profiles with role information |
+| `courses` | Course Mgmt, Quiz | Course metadata and enrollment |
+| `quizzes` | Quiz Feature | Quiz definitions with questions |
+| `quiz_attempts` | Quiz Feature, Analytics | Student attempt records |
+
+### API Integration Points
+
+| Endpoint | Consumers | Purpose |
+|----------|-----------|---------|
+| `GET /api/quizzes?courseId=X` | Student UI, Teacher UI | List quizzes for a course |
+| `POST /api/quizzes` | Teacher UI | Create new quiz |
+| `GET /api/attempts?studentId=Y` | Student UI | Get student's attempt history |
+| `GET /api/attempts?quizId=Z` | Teacher Analytics | Get all attempts for a quiz |
+| `POST /api/attempts` | Student UI | Create/update quiz attempt |
+
+### Testing Integration
+
+Quiz feature E2E tests verify integration with:
+- **Auth Flow**: Tests require authenticated users (`tests/helpers/auth-helpers.ts`)
+- **Role-Based Access**: Teacher vs Student route access
+- **Data Persistence**: Quiz and attempt data saved to Firestore
+- **Cross-Feature Navigation**: Dashboard → Quiz → Results flow
