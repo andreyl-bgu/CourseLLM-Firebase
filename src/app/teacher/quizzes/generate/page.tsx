@@ -127,7 +127,7 @@ export default function GenerateQuizPage() {
       // Use uploaded materials
       finalCourseContent = materialsContent.trim();
       finalLearningObjectives = learningObjectives.trim() || 
-        `Assess understanding of ${selectedCourseData.title} concepts and principles.`;
+        `Assess understanding of the course based on the following description: ${selectedCourseData.description || selectedCourseData.title}. Focus on the key concepts and topics mentioned.`;
       
       console.log('[QuizGenerate] Using course materials for quiz generation:', materials.length, 'materials');
     } else {
@@ -148,7 +148,7 @@ export default function GenerateQuizPage() {
 
       finalCourseContent = courseMetadata || `Course content for ${courseTitle || 'this course'}`;
       finalLearningObjectives = learningObjectives.trim() || 
-        `Assess understanding of ${courseTitle || 'course'} concepts and principles based on the quiz title and topics specified.`;
+        `Assess understanding of the course based on the following description: ${courseDescription || courseTitle}. Focus on the key concepts and topics mentioned in the description.`;
     }
 
     setIsGenerating(true);
