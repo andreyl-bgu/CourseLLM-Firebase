@@ -1,6 +1,6 @@
 // Firebase configuration - combined auth and quiz features
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getAnalytics } from 'firebase/analytics';
 
@@ -16,7 +16,19 @@ const firebaseConfig = {
 
 // #region agent log
 if (typeof window !== 'undefined') {
-  fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:config',message:'Firebase config loaded',data:{authDomain:firebaseConfig.authDomain||'NOT_SET',projectId:firebaseConfig.projectId||'NOT_SET',hasApiKey:!!firebaseConfig.apiKey,currentHost:window.location.host},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+  const configCheck = {
+    hasApiKey: !!firebaseConfig.apiKey,
+    hasAuthDomain: !!firebaseConfig.authDomain,
+    hasProjectId: !!firebaseConfig.projectId,
+    hasStorageBucket: !!firebaseConfig.storageBucket,
+    hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+    hasAppId: !!firebaseConfig.appId,
+    authDomain: firebaseConfig.authDomain || 'MISSING',
+    projectId: firebaseConfig.projectId || 'MISSING',
+    origin: window.location.origin,
+    hostname: window.location.hostname,
+  };
+  fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:18',message:'Firebase config check',data:configCheck,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
 }
 // #endregion
 
@@ -24,46 +36,22 @@ if (typeof window !== 'undefined') {
 let app;
 try {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:25',message:'Firebase initialized successfully',data:{appName:app.name,appsCount:getApps().length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  }
+  // #endregion
 } catch (initError: any) {
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:30',message:'Firebase initialization failed',data:{error:initError?.message||'Unknown',code:initError?.code||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  }
+  // #endregion
   throw initError;
 }
 
-// Initialize Auth with local persistence for redirect flow
+// Initialize Auth
 export const auth = getAuth(app);
-
-// Set persistence to LOCAL to ensure user stays logged in after redirect
-if (typeof window !== 'undefined') {
-  // #region agent log
-  fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:persistence',message:'Attempting setPersistence(browserLocalPersistence)',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-  // #endregion
-  setPersistence(auth, browserLocalPersistence).catch((err) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:persistence',message:'setPersistence failed',data:{code:err?.code||null,message:typeof err?.message==='string'?err.message.slice(0,160):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-    // #endregion
-    console.warn("Could not set auth persistence:", err);
-  });
-}
-
-// Connect to Auth emulator only if explicitly enabled via environment variable
-if (typeof window !== 'undefined') {
-  const useEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true' || 
-                      process.env.FIREBASE_AUTH_EMULATOR_HOST;
-  
-  if (useEmulator) {
-    const { connectAuthEmulator } = require('firebase/auth');
-    const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099';
-    try {
-      connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
-      console.log(`[Firebase] Connected to Auth emulator at http://${authEmulatorHost}`);
-    } catch (err: any) {
-      // Emulator might already be connected or connection failed
-      if (!err.message?.includes('already been called') && !err.message?.includes('already connected')) {
-        console.warn('[Firebase] Could not connect to Auth emulator:', err.message);
-      }
-    }
-  }
-}
-
 export const googleProvider = new GoogleAuthProvider();
 
 // Initialize Firestore

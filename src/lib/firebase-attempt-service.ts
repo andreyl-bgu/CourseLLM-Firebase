@@ -42,14 +42,7 @@ function timestampToISO(timestamp: any): string {
 /**
  * Convert QuizAttempt to Firestore format
  */
-function attemptToFirestore(attempt: Omit<QuizAttempt, 'id'>, useAdminSdk = false): any {
-  if (useAdminSdk) {
-    // For Admin SDK, we'll set timestamp separately
-    return {
-      ...attempt,
-    };
-  }
-  // For client SDK, use serverTimestamp()
+function attemptToFirestore(attempt: Omit<QuizAttempt, 'id'>): any {
   return {
     ...attempt,
     startedAt: serverTimestamp(),
@@ -75,19 +68,18 @@ export const FirebaseAttemptService = {
    */
   async getByQuiz(quizId: string): Promise<QuizAttempt[]> {
     try {
-      let querySnapshot;
-      
       if (isServer) {
         // Server-side: use Admin SDK
         const adminDbInstance = getAdminFirestore();
-        querySnapshot = await adminDbInstance.collection(ATTEMPTS_COLLECTION)
+        const snapshot = await adminDbInstance.collection(ATTEMPTS_COLLECTION)
           .where('quizId', '==', quizId)
           .get();
         
-        const attempts = querySnapshot.docs.map(doc => 
+        const attempts = snapshot.docs.map(doc => 
           firestoreToAttempt(doc.id, doc.data())
         );
         
+        // Sort in memory
         return attempts.sort((a, b) => 
           new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
         );
@@ -99,7 +91,7 @@ export const FirebaseAttemptService = {
         where('quizId', '==', quizId)
       );
       
-      querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(q);
       
       const attempts = querySnapshot.docs.map(doc => 
         firestoreToAttempt(doc.id, doc.data())
@@ -120,19 +112,18 @@ export const FirebaseAttemptService = {
    */
   async getByStudent(studentId: string): Promise<QuizAttempt[]> {
     try {
-      let querySnapshot;
-      
       if (isServer) {
         // Server-side: use Admin SDK
         const adminDbInstance = getAdminFirestore();
-        querySnapshot = await adminDbInstance.collection(ATTEMPTS_COLLECTION)
+        const snapshot = await adminDbInstance.collection(ATTEMPTS_COLLECTION)
           .where('studentId', '==', studentId)
           .get();
         
-        const attempts = querySnapshot.docs.map(doc => 
+        const attempts = snapshot.docs.map(doc => 
           firestoreToAttempt(doc.id, doc.data())
         );
         
+        // Sort in memory
         return attempts.sort((a, b) => 
           new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
         );
@@ -144,7 +135,7 @@ export const FirebaseAttemptService = {
         where('studentId', '==', studentId)
       );
       
-      querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(q);
       
       const attempts = querySnapshot.docs.map(doc => 
         firestoreToAttempt(doc.id, doc.data())
@@ -165,17 +156,16 @@ export const FirebaseAttemptService = {
    */
   async getById(attemptId: string): Promise<QuizAttempt | null> {
     try {
-      
       if (isServer) {
         // Server-side: use Admin SDK
         const adminDbInstance = getAdminFirestore();
-        const docSnap = await adminDbInstance.collection(ATTEMPTS_COLLECTION).doc(attemptId).get();
+        const docSnapshot = await adminDbInstance.collection(ATTEMPTS_COLLECTION).doc(attemptId).get();
         
-        if (!docSnap.exists) {
+        if (!docSnapshot.exists) {
           return null;
         }
         
-        return firestoreToAttempt(docSnap.id, docSnap.data());
+        return firestoreToAttempt(docSnapshot.id, docSnapshot.data());
       }
       
       // Client-side: use client SDK
@@ -198,25 +188,38 @@ export const FirebaseAttemptService = {
    */
   async getStudentAttempt(quizId: string, studentId: string): Promise<QuizAttempt | null> {
     try {
-      let querySnapshot;
-      
       if (isServer) {
         // Server-side: use Admin SDK
         const adminDbInstance = getAdminFirestore();
-        querySnapshot = await adminDbInstance.collection(ATTEMPTS_COLLECTION)
+        const snapshot = await adminDbInstance.collection(ATTEMPTS_COLLECTION)
           .where('quizId', '==', quizId)
           .where('studentId', '==', studentId)
           .get();
-      } else {
-        // Client-side: use client SDK
-        const q = query(
-          collection(db, ATTEMPTS_COLLECTION),
-          where('quizId', '==', quizId),
-          where('studentId', '==', studentId)
+        
+        if (snapshot.empty) {
+          return null;
+        }
+        
+        const attempts = snapshot.docs.map(doc => 
+          firestoreToAttempt(doc.id, doc.data())
         );
         
-        querySnapshot = await getDocs(q);
+        // Sort and return the most recent attempt
+        attempts.sort((a, b) => 
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+        );
+        
+        return attempts[0];
       }
+      
+      // Client-side: use client SDK
+      const q = query(
+        collection(db, ATTEMPTS_COLLECTION),
+        where('quizId', '==', quizId),
+        where('studentId', '==', studentId)
+      );
+      
+      const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
         return null;
@@ -243,26 +246,28 @@ export const FirebaseAttemptService = {
    */
   async create(attempt: Omit<QuizAttempt, 'id' | 'startedAt' | 'completedAt'>): Promise<QuizAttempt> {
     try {
+      const attemptData = attemptToFirestore(attempt as Omit<QuizAttempt, 'id'>);
       
       let docRef;
       
       if (isServer) {
         // Server-side: use Admin SDK
         const adminDbInstance = getAdminFirestore();
-        const attemptDataForAdmin = attemptToFirestore(attempt as Omit<QuizAttempt, 'id'>, true);
-        const docRefAdmin = adminDbInstance.collection(ATTEMPTS_COLLECTION).doc();
-        await docRefAdmin.set({
-          ...attemptDataForAdmin,
+        const attemptDataForAdmin = {
+          ...attempt,
           startedAt: admin.firestore.FieldValue.serverTimestamp(),
-          completedAt: attempt.status === 'completed' ? admin.firestore.FieldValue.serverTimestamp() : null,
-        });
+          completedAt: attempt.status === 'completed' 
+            ? admin.firestore.FieldValue.serverTimestamp() 
+            : null,
+        };
+        const docRefAdmin = adminDbInstance.collection(ATTEMPTS_COLLECTION).doc();
+        await docRefAdmin.set(attemptDataForAdmin);
         docRef = { id: docRefAdmin.id } as any;
       } else {
         // Client-side: use client SDK
         if (!db) {
           throw new Error('Firestore not initialized');
         }
-        const attemptData = attemptToFirestore(attempt as Omit<QuizAttempt, 'id'>, false);
         docRef = await addDoc(collection(db, ATTEMPTS_COLLECTION), attemptData);
       }
       
@@ -285,28 +290,17 @@ export const FirebaseAttemptService = {
    */
   async update(attemptId: string, updates: Partial<QuizAttempt>): Promise<QuizAttempt> {
     try {
+      const docRef = doc(db, ATTEMPTS_COLLECTION, attemptId);
       
       // Remove id and timestamp fields from updates
       const { id: _, startedAt, completedAt, ...updateData } = updates as any;
       
       // If marking as completed, set completedAt
       if (updates.status === 'completed') {
-        if (isServer) {
-          updateData.completedAt = admin.firestore.FieldValue.serverTimestamp();
-        } else {
-          updateData.completedAt = serverTimestamp();
-        }
+        updateData.completedAt = serverTimestamp();
       }
       
-      if (isServer) {
-        // Server-side: use Admin SDK
-        const adminDbInstance = getAdminFirestore();
-        await adminDbInstance.collection(ATTEMPTS_COLLECTION).doc(attemptId).update(updateData);
-      } else {
-        // Client-side: use client SDK
-        const docRef = doc(db, ATTEMPTS_COLLECTION, attemptId);
-        await updateDoc(docRef, updateData);
-      }
+      await updateDoc(docRef, updateData);
       
       console.log(`[FirebaseAttemptService] Updated attempt: ${attemptId}`);
       
@@ -328,16 +322,8 @@ export const FirebaseAttemptService = {
    */
   async delete(attemptId: string): Promise<void> {
     try {
-      
-      if (isServer) {
-        // Server-side: use Admin SDK
-        const adminDbInstance = getAdminFirestore();
-        await adminDbInstance.collection(ATTEMPTS_COLLECTION).doc(attemptId).delete();
-      } else {
-        // Client-side: use client SDK
-        const docRef = doc(db, ATTEMPTS_COLLECTION, attemptId);
-        await deleteDoc(docRef);
-      }
+      const docRef = doc(db, ATTEMPTS_COLLECTION, attemptId);
+      await deleteDoc(docRef);
       
       console.log(`[FirebaseAttemptService] Deleted attempt: ${attemptId}`);
     } catch (error) {

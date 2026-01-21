@@ -1,72 +1,40 @@
 import { auth, googleProvider } from "./firebase";
-import { signOut, signInWithRedirect, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithPopup, signOut, signInWithRedirect } from "firebase/auth";
 
 export async function signInWithGoogle() {
   // #region agent log
   if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:signInWithGoogle',message:'Starting Google sign-in',data:{origin:window.location.origin,host:window.location.host},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:6',message:'signInWithGoogle called',data:{authAppName:auth.app.name,origin:window.location.origin,hostname:window.location.hostname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
   }
   // #endregion
-  
-  // Check if web storage is available (required for redirect flow)
-  let storageAvailable = false;
   try {
-    const testKey = '__firebase_test__';
-    localStorage.setItem(testKey, '1');
-    localStorage.removeItem(testKey);
-    storageAvailable = true;
-  } catch {
-    storageAvailable = false;
-  }
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:signInWithGoogle',message:'Storage availability check',data:{storageAvailable},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-  }
-  // #endregion
-  
-  // Require storage for redirect flow
-  if (!storageAvailable) {
-    const err: any = new Error("Web storage is unavailable for redirect sign-in.");
-    err.code = "auth/web-storage-unsupported";
-    throw err;
-  }
-  
-  // Try redirect flow (preferred for normal browsing)
-  try {
+    const res = await signInWithPopup(auth, googleProvider);
     // #region agent log
     if (typeof window !== 'undefined') {
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:signInWithGoogle',message:'Calling signInWithRedirect',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:9',message:'signInWithPopup succeeded',data:{userId:res.user.uid},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
     }
     // #endregion
+    return res.user;
+  } catch (err: any) {
+    // #region agent log
     if (typeof window !== 'undefined') {
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:12',message:'signInWithPopup error',data:{errorCode:err?.code||'N/A',errorMessage:err?.message||'Unknown',errorName:err?.name||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    }
+    // #endregion
+    // Some browser environments (strict COOP/COEP, embedded contexts) block cross-window access
+    // which the Firebase popup flow relies on (checking popup.closed). In that case, fall back
+    // to the redirect-based flow which does not require cross-window communication.
+    const msg = err?.message || "";
+    if (/cross-?origin|opener|blocked a frame|window\.closed/i.test(msg)) {
+      console.warn("Popup blocked by Cross-Origin-Opener-Policy or similar, falling back to redirect sign-in.");
       try {
-        sessionStorage.setItem('__redirect_attempt__', String(Date.now()));
-      } catch {}
+        await signInWithRedirect(auth, googleProvider);
+        return null as any; // control will not reach here in redirect flow
+      } catch (redirectErr) {
+        handleAuthError(redirectErr);
+        throw redirectErr;
+      }
     }
-    await signInWithRedirect(auth, googleProvider);
-    // #region agent log
-    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:signInWithRedirect',message:'signInWithRedirect returned without navigation',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-    // #endregion
-    // signInWithRedirect navigates away, this line should not execute if redirect happens
-    return null;
-  } catch (err: any) {
-    // #region agent log
-    if (typeof window !== 'undefined') {
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:signInWithRedirect:error',message:'signInWithRedirect failed',data:{code:err?.code||null,message:err?.message?.slice(0,150)||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-    }
-    // #endregion
-    console.error("Redirect sign-in failed:", err);
-    handleAuthError(err);
-    throw err;
-  }
-}
-
-export async function signInWithEmail(email: string, password: string) {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  } catch (err: any) {
-    console.error("Email sign-in failed:", err);
     handleAuthError(err);
     throw err;
   }
@@ -78,23 +46,24 @@ export async function signOutUser() {
 
 export function handleAuthError(err: any) {
   if (!err) return;
-  const errorCode = err?.code || "";
-  const msg = err?.message || "";
-  
-  if (errorCode === "auth/popup-closed-by-user") {
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'authService.ts:33',message:'handleAuthError called',data:{errorCode:err?.code||'N/A',errorMessage:err?.message||'Unknown',origin:window.location.origin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  }
+  // #endregion
+  // Basic cases - the UI can show friendlier messages
+  if (err.code === "auth/popup-closed-by-user") {
     console.warn("Auth popup closed by user");
     return;
   }
-  if (errorCode === "auth/popup-blocked") {
-    console.warn("Auth popup blocked by browser");
-    return;
-  }
-  if (errorCode === "auth/network-request-failed") {
+  if (err.code === "auth/network-request-failed") {
     console.warn("Network error");
     return;
   }
-  if (/cross-?origin|opener|blocked a frame|window\.closed|popup.*blocked/i.test(msg)) {
-    console.warn("Cross-origin issue:", msg);
+  // Cross-origin opener / popup blocking issues
+  const msg = err?.message || "";
+  if (/cross-?origin|opener|blocked a frame|window\.closed/i.test(msg)) {
+    console.warn("Popup-based sign-in blocked by browser COOP/COEP or embedding policy. Try enabling third-party cookies or use redirect-based sign-in.");
     return;
   }
   console.error("Auth error", err);

@@ -284,8 +284,8 @@ export const FirebaseCourseService = {
           // Sort in memory instead
           const docs = querySnapshot.docs.map(doc => firestoreToCourse(doc.id, doc.data()));
           return docs.sort((a, b) => {
-            const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            const aDate = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+            const bDate = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
             return bDate - aDate;
           });
         }

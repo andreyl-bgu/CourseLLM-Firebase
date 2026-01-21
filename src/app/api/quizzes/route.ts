@@ -23,14 +23,8 @@ export async function GET(req: Request) {
     return NextResponse.json(quizzes);
   } catch (error) {
     console.error('[API] GET /api/quizzes error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorCode = (error as any)?.code || 'UNKNOWN';
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch quizzes',
-        message: errorMessage,
-        code: errorCode
-      },
+      { error: 'Failed to fetch quizzes' },
       { status: 500 }
     );
   }
@@ -44,6 +38,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     
+    // #region agent log
     console.log('[API] POST /api/quizzes - Received quiz data:', {
       hasTitle: !!body.title,
       hasCourseId: !!body.courseId,
@@ -52,19 +47,24 @@ export async function POST(req: Request) {
       totalPoints: body.totalPoints,
       difficulty: body.difficulty,
     });
+    // #endregion
     
     const quiz = await FirebaseQuizService.add(body);
     
+    // #region agent log
     console.log('[API] POST /api/quizzes - Quiz created successfully:', quiz.id);
+    // #endregion
     
     return NextResponse.json(quiz, { status: 201 });
   } catch (error: any) {
     console.error('[API] POST /api/quizzes error:', error);
+    // #region agent log
     console.error('[API] POST /api/quizzes - Error details:', {
       message: error?.message,
       code: error?.code,
       stack: error?.stack?.substring(0, 200),
     });
+    // #endregion
     return NextResponse.json(
       { 
         error: 'Failed to create quiz',
@@ -75,3 +75,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

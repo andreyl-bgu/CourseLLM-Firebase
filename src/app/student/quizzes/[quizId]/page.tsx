@@ -27,17 +27,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { QuizApiClient } from '@/lib/quiz-api-client';
-import { quizAttempts, courses } from '@/lib/mock-data';
+import { useAuth } from '@/components/AuthProviderClient';
 import { Quiz, QuizQuestion, QuizAnswer, QuizAttempt } from '@/lib/types';
 import { ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
-// Mock current student ID
-const CURRENT_STUDENT_ID = 'student-1';
-
 export default function TakeQuizPage() {
   const params = useParams();
   const router = useRouter();
+  const { firebaseUser } = useAuth();
   const quizId = params.quizId as string;
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -49,6 +47,8 @@ export default function TakeQuizPage() {
 
   useEffect(() => {
     const fetchQuiz = async () => {
+      if (!firebaseUser?.uid) return;
+      
       try {
         setIsLoading(true);
         const foundQuiz = await QuizApiClient.getById(quizId);
@@ -56,19 +56,25 @@ export default function TakeQuizPage() {
           setQuiz(foundQuiz);
           
           // Check if there's an in-progress attempt
-          const inProgressAttempt = quizAttempts.find(
-            (a) => a.quizId === quizId && a.studentId === CURRENT_STUDENT_ID && a.status === 'in-progress'
-          );
-          
-          if (inProgressAttempt) {
-            // Restore previous answers
-            const restoredAnswers: Record<string, string> = {};
-            inProgressAttempt.answers.forEach((answer) => {
-              restoredAnswers[answer.questionId] = Array.isArray(answer.studentAnswer)
-                ? answer.studentAnswer.join(', ')
-                : answer.studentAnswer;
-            });
-            setAnswers(restoredAnswers);
+          try {
+            const attempts = await QuizApiClient.getAttemptsByStudent(firebaseUser.uid);
+            const inProgressAttempt = attempts.find(
+              (a) => a.quizId === quizId && a.status === 'in-progress'
+            );
+            
+            if (inProgressAttempt) {
+              // Restore previous answers
+              const restoredAnswers: Record<string, string> = {};
+              inProgressAttempt.answers.forEach((answer) => {
+                restoredAnswers[answer.questionId] = Array.isArray(answer.studentAnswer)
+                  ? answer.studentAnswer.join(', ')
+                  : answer.studentAnswer;
+              });
+              setAnswers(restoredAnswers);
+            }
+          } catch (attemptError) {
+            // If fetching attempts fails, continue without restoring
+            console.warn('Could not fetch previous attempts:', attemptError);
           }
         }
       } catch (error) {
@@ -79,7 +85,7 @@ export default function TakeQuizPage() {
     };
 
     fetchQuiz();
-  }, [quizId]);
+  }, [quizId, firebaseUser]);
 
   if (isLoading) {
     return (
@@ -118,7 +124,6 @@ export default function TakeQuizPage() {
   const totalQuestions = quiz.questions.length;
   const progressPercentage = ((currentQuestionIndex + 1) / totalQuestions) * 100;
   const answeredCount = Object.keys(answers).length;
-  const course = courses.find((c) => c.id === quiz.courseId);
 
   // Handle answer change
   const handleAnswerChange = (questionId: string, answer: string) => {
@@ -172,6 +177,15 @@ export default function TakeQuizPage() {
 
   // Submit quiz
   const handleSubmit = async () => {
+    if (!firebaseUser?.uid) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to submit a quiz.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -181,7 +195,7 @@ export default function TakeQuizPage() {
       // Create quiz attempt and save to Firebase
       const attemptData = {
         quizId: quiz.id,
-        studentId: CURRENT_STUDENT_ID,
+        studentId: firebaseUser.uid,
         courseId: quiz.courseId,
         status: 'completed' as const,
         score,
@@ -238,7 +252,9 @@ export default function TakeQuizPage() {
             {quiz.difficulty}
           </Badge>
         </div>
-        <p className="text-gray-600">{course?.title}</p>
+        {quiz.description && (
+          <p className="text-gray-600">{quiz.description}</p>
+        )}
       </div>
 
       {/* Progress Bar */}

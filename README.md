@@ -1,11 +1,5 @@
 # CourseLLM
 
-## 🌐 Production Deployment
-
-**Live Application:** [https://coursellm-afe61.web.app/](https://coursellm-afe61.web.app/)
-
-The application is deployed and available for testing. You can access it using Google OAuth authentication.
-
 ## Purpose
 CourseLLM (Coursewise) is an educational platform that leverages AI to provide personalized learning experiences. 
 It is intended for Undergraduate University Courses and is being tested on Computer Science courses.
@@ -206,10 +200,8 @@ quiz/
 ├── src/
 │   ├── app/                    # Next.js pages and API routes
 │   │   ├── api/                # REST API endpoints
-│   │   │   └── monitoring/    # Monitoring API endpoint
 │   │   ├── student/            # Student pages
 │   │   ├── teacher/            # Teacher pages
-│   │   │   └── monitoring/    # Monitoring dashboard
 │   │   └── login/              # Authentication pages
 │   ├── components/             # React components
 │   │   ├── ui/                 # UI component library
@@ -220,7 +212,6 @@ quiz/
 │   │   ├── firebase-quiz-service.ts
 │   │   ├── firebase-attempt-service.ts
 │   │   ├── quiz-api-client.ts  # API client
-│   │   ├── monitoring-service.ts # System monitoring utilities
 │   │   └── types.ts            # TypeScript types
 │   └── ai/                     # AI flows (Genkit)
 │       └── flows/
@@ -237,8 +228,6 @@ quiz/
 ├── docs/                        # Documentation
 │   ├── features/               # Feature documentation
 │   └── Auth/                   # Authentication docs
-├── architecture.md             # Architecture documentation
-├── integration.md              # Integration documentation
 ├── firebase.json                # Firebase configuration
 ├── jest.config.js              # Jest configuration
 ├── playwright.config.ts        # Playwright configuration
@@ -258,64 +247,9 @@ quiz/
 
 See [`docs/features/QUIZ_README.md`](docs/features/QUIZ_README.md) for detailed feature documentation.
 
-### System Monitoring
-
-- **Real-Time CPU & RAM Monitoring**: Track system resource usage in real-time
-- **Monitoring Dashboard**: Visual dashboard with charts and progress bars showing:
-  - CPU usage percentage, load averages, and core count
-  - Memory usage (total, free, used) with detailed breakdown
-  - Node.js process memory metrics (heap, RSS, external)
-  - System and process uptime
-  - Historical usage trends (last 20 measurements)
-- **API Endpoint**: `GET /api/monitoring` - Exposes system metrics in raw or formatted format
-- **Auto-Refresh**: Dashboard automatically refreshes every 5 seconds (can be paused/resumed)
-- **Teacher Access**: Available in the teacher portal at `/teacher/monitoring`
-
-The monitoring system helps track application performance and resource utilization, enabling proactive identification of performance issues.
-
----
-
-## Development Process
-
-### Manual Development
-
-The following components and features were developed manually by the team:
-
-- **Project Architecture & Setup**: Initial project structure, Next.js configuration, Firebase setup, and build configuration
-- **Authentication System**: Firebase Authentication integration, Google OAuth implementation, role-based access control
-- **Database Schema Design**: Firestore data models, Firebase DataConnect schema design
-- **UI/UX Design**: Component design, layout structure, styling with Tailwind CSS and Radix UI
-- **API Design**: REST API endpoint definitions, request/response structures, microservice architecture planning
-- **Testing Strategy**: Test framework setup (Jest, Playwright), test structure and organization
-- **Deployment Configuration**: Firebase Hosting setup, App Hosting configuration, CI/CD pipeline
-- **Project Documentation**: README, feature documentation, OpenSpec specifications
-
-### AI-Assisted Development
-
-The following components and features were developed with AI assistance:
-
-- **Code Implementation**: Component implementations, service layer code, API route handlers
-- **Type Definitions**: TypeScript type definitions and interfaces
-- **Test Implementation**: Unit test and E2E test implementations
-- **Code Refactoring**: Code optimization, bug fixes, and improvements
-- **Documentation**: Code comments, inline documentation, and technical documentation
-
-### Hybrid Approach
-
-Many features were developed using a hybrid approach where:
-- **Architecture and design decisions** were made manually by the team
-- **Implementation details** were developed with AI assistance based on specifications
-- **Code review and refinement** was done manually to ensure quality and alignment with project standards
-
 ---
 
 ## Deployment
-
-### Production URL
-
-**Live Application:** [https://coursellm-afe61.web.app/](https://coursellm-afe61.web.app/)
-
-The application is deployed to Firebase Hosting and App Hosting. Reviewers can test the production deployment using Google OAuth authentication.
 
 ### Firebase Hosting + App Hosting
 
@@ -383,8 +317,6 @@ lsof -ti:9002 | xargs kill -9
 
 ## Additional Resources
 
-- [Architecture Documentation](architecture.md)
-- [Integration Documentation](integration.md)
 - [OpenSpec Documentation](openspec/AGENTS.md)
 - [Quiz Feature Documentation](docs/features/QUIZ_README.md)
 - [E2E Test Documentation](tests/README.md)

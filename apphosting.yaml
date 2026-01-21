@@ -10,8 +10,6 @@ runConfig:
   env:
     - variable: GOOGLE_API_KEY
       secret: google-api-key
-    - variable: FIREBASE_SERVICE_ACCOUNT_JSON
-      secret: SERVICE_ACCOUNT_JSON
     - variable: NEXT_PUBLIC_FIREBASE_API_KEY
       value: AIzaSyCtArgwqQ8rA2Hg2yFI5uCzm8jB7S7yJzw
     - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN

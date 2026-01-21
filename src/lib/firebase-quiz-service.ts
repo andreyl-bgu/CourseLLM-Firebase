@@ -45,10 +45,12 @@ function timestampToISO(timestamp: any): string {
  */
 function quizToFirestore(quiz: Omit<Quiz, 'id'>, useAdminSdk = false): any {
   if (useAdminSdk) {
+    // For Admin SDK, we'll set timestamp separately
     return {
       ...quiz,
     };
   }
+  // For client SDK, use serverTimestamp()
   return {
     ...quiz,
     createdAt: serverTimestamp(),
@@ -85,15 +87,18 @@ export const FirebaseQuizService = {
       }
       
       // Client-side: use client SDK
+      // Try with orderBy first, but fallback to simple query if index doesn't exist
       let querySnapshot;
       try {
         querySnapshot = await getDocs(
           query(collection(db, QUIZZES_COLLECTION), orderBy('createdAt', 'desc'))
         );
       } catch (orderByError: any) {
+        // If orderBy fails (e.g., missing index), try without it
         if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
           console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
           querySnapshot = await getDocs(collection(db, QUIZZES_COLLECTION));
+          // Sort in memory instead
           const docs = querySnapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
           return docs.sort((a, b) => 
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -117,16 +122,18 @@ export const FirebaseQuizService = {
   async getById(id: string): Promise<Quiz | null> {
     try {
       if (isServer) {
+        // Server-side: use Admin SDK
         const adminDbInstance = getAdminFirestore();
-        const docSnap = await adminDbInstance.collection(QUIZZES_COLLECTION).doc(id).get();
+        const docSnapshot = await adminDbInstance.collection(QUIZZES_COLLECTION).doc(id).get();
         
-        if (!docSnap.exists) {
+        if (!docSnapshot.exists) {
           return null;
         }
         
-        return firestoreToQuiz(docSnap.id, docSnap.data());
+        return firestoreToQuiz(docSnapshot.id, docSnapshot.data());
       }
       
+      // Client-side: use client SDK
       const docRef = doc(db, QUIZZES_COLLECTION, id);
       const docSnap = await getDoc(docRef);
       
@@ -146,19 +153,6 @@ export const FirebaseQuizService = {
    */
   async getByCourse(courseId: string): Promise<Quiz[]> {
     try {
-      if (isServer) {
-        const adminDbInstance = getAdminFirestore();
-        const snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
-          .where('courseId', '==', courseId)
-          .orderBy('createdAt', 'desc')
-          .get();
-        
-        const docs = snapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
-        return docs.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-      }
-      
       let querySnapshot;
       try {
         const q = query(
@@ -168,6 +162,7 @@ export const FirebaseQuizService = {
         );
         querySnapshot = await getDocs(q);
       } catch (orderByError: any) {
+        // If orderBy fails (e.g., missing index), try without it
         if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
           console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
           const q = query(
@@ -175,6 +170,7 @@ export const FirebaseQuizService = {
             where('courseId', '==', courseId)
           );
           querySnapshot = await getDocs(q);
+          // Sort in memory instead
           const docs = querySnapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
           return docs.sort((a, b) => 
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -198,6 +194,7 @@ export const FirebaseQuizService = {
   async getByTeacher(teacherId: string): Promise<Quiz[]> {
     try {
       if (isServer) {
+        // Server-side: use Admin SDK
         const adminDbInstance = getAdminFirestore();
         let snapshot;
         try {
@@ -206,22 +203,27 @@ export const FirebaseQuizService = {
             .orderBy('createdAt', 'desc')
             .get();
         } catch (orderByError: any) {
+          // If orderBy fails (e.g., missing index), try without it
           if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
             console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
             snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
               .where('createdBy', '==', teacherId)
               .get();
-          } else {
-            throw orderByError;
+            // Sort in memory instead
+            const docs = snapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
+            return docs.sort((a, b) => 
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
           }
+          throw orderByError;
         }
         
-        const docs = snapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
-        return docs.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        return snapshot.docs.map(doc => 
+          firestoreToQuiz(doc.id, doc.data())
         );
       }
       
+      // Client-side: use client SDK
       let querySnapshot;
       try {
         const q = query(
@@ -231,6 +233,7 @@ export const FirebaseQuizService = {
         );
         querySnapshot = await getDocs(q);
       } catch (orderByError: any) {
+        // If orderBy fails (e.g., missing index), try without it
         if (orderByError?.code === 'failed-precondition' || orderByError?.message?.includes('index')) {
           console.warn('[FirebaseQuizService] OrderBy index not found, fetching without orderBy');
           const q = query(
@@ -238,6 +241,7 @@ export const FirebaseQuizService = {
             where('createdBy', '==', teacherId)
           );
           querySnapshot = await getDocs(q);
+          // Sort in memory instead
           const docs = querySnapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
           return docs.sort((a, b) => 
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -260,49 +264,71 @@ export const FirebaseQuizService = {
    */
   async add(quiz: Omit<Quiz, 'id' | 'createdAt'>): Promise<Quiz> {
     try {
+      // #region agent log
+      console.log('[FirebaseQuizService] Adding quiz:', {
+        title: quiz.title,
+        courseId: quiz.courseId,
+        createdBy: quiz.createdBy,
+        questionsCount: quiz.questions?.length || 0,
+        isServer,
+        hasDb: !!db,
+      });
+      // #endregion
+      
+      const quizData = quizToFirestore(quiz as Omit<Quiz, 'id'>);
+      
+      // #region agent log
+      console.log('[FirebaseQuizService] Quiz data prepared, attempting to add to Firestore...');
+      // #endregion
+      
+      let docRef;
+      
+      // Use Admin SDK on server, client SDK on client
       if (isServer) {
-        try {
-          const adminDbInstance = getAdminFirestore();
-          const quizDataForAdmin = quizToFirestore(quiz as Omit<Quiz, 'id'>, true);
-          const docRefAdmin = adminDbInstance.collection(QUIZZES_COLLECTION).doc();
-          await docRefAdmin.set({
-            ...quizDataForAdmin,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-          const docRef = { id: docRefAdmin.id } as any;
-          
-          console.log(`[FirebaseQuizService] Added quiz: ${docRef.id} - "${quiz.title}"`);
-          
-          return {
-            ...quiz,
-            id: docRef.id,
-            createdAt: new Date().toISOString(),
-          } as Quiz;
-        } catch (adminError) {
-          console.error('[FirebaseQuizService] Admin SDK error:', adminError);
-          throw new Error(`Failed to create quiz using Admin SDK: ${adminError instanceof Error ? adminError.message : String(adminError)}`);
-        }
+        const adminDbInstance = getAdminFirestore();
+        // Server-side: use Admin SDK
+        const quizDataForAdmin = quizToFirestore(quiz as Omit<Quiz, 'id'>, true);
+        const docRefAdmin = adminDbInstance.collection(QUIZZES_COLLECTION).doc();
+        await docRefAdmin.set({
+          ...quizDataForAdmin,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        docRef = { id: docRefAdmin.id } as any;
+        // #region agent log
+        console.log('[FirebaseQuizService] Quiz added via Admin SDK:', docRef.id);
+        // #endregion
       } else {
+        // Client-side: use client SDK
         if (!db) {
-          throw new Error('Firestore not initialized on client');
+          throw new Error('Firestore not initialized');
         }
         const quizDataForClient = quizToFirestore(quiz as Omit<Quiz, 'id'>, false);
-        const docRef = await addDoc(collection(db, QUIZZES_COLLECTION), quizDataForClient);
-        
-        console.log(`[FirebaseQuizService] Added quiz: ${docRef.id} - "${quiz.title}"`);
-        
-        return {
-          ...quiz,
-          id: docRef.id,
-          createdAt: new Date().toISOString(),
-        } as Quiz;
+        docRef = await addDoc(collection(db, QUIZZES_COLLECTION), quizDataForClient);
+        // #region agent log
+        console.log('[FirebaseQuizService] Quiz added via Client SDK:', docRef.id);
+        // #endregion
       }
+      
+      console.log(`[FirebaseQuizService] Added quiz: ${docRef.id} - "${quiz.title}"`);
+      
+      // Return the created quiz with the generated ID
+      return {
+        ...quiz,
+        id: docRef.id,
+        createdAt: new Date().toISOString(),
+      } as Quiz;
     } catch (error: any) {
+      // #region agent log
+      console.error('[FirebaseQuizService] Error adding quiz - details:', {
+        message: error?.message,
+        code: error?.code,
+        name: error?.name,
+        isServer,
+        stack: error?.stack?.substring(0, 300),
+      });
+      // #endregion
       console.error('[FirebaseQuizService] Error adding quiz:', error);
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error(`Failed to create quiz: ${String(error)}`);
+      throw error;
     }
   },
 
@@ -311,18 +337,16 @@ export const FirebaseQuizService = {
    */
   async update(id: string, updates: Partial<Quiz>): Promise<Quiz> {
     try {
+      const docRef = doc(db, QUIZZES_COLLECTION, id);
+      
+      // Remove id and createdAt from updates
       const { id: _, createdAt, ...updateData } = updates as any;
       
-      if (isServer) {
-        const adminDbInstance = getAdminFirestore();
-        await adminDbInstance.collection(QUIZZES_COLLECTION).doc(id).update(updateData);
-      } else {
-        const docRef = doc(db, QUIZZES_COLLECTION, id);
-        await updateDoc(docRef, updateData);
-      }
+      await updateDoc(docRef, updateData);
       
       console.log(`[FirebaseQuizService] Updated quiz: ${id}`);
       
+      // Fetch and return updated quiz
       const updated = await this.getById(id);
       if (!updated) {
         throw new Error('Quiz not found after update');
@@ -340,13 +364,8 @@ export const FirebaseQuizService = {
    */
   async delete(id: string): Promise<void> {
     try {
-      if (isServer) {
-        const adminDbInstance = getAdminFirestore();
-        await adminDbInstance.collection(QUIZZES_COLLECTION).doc(id).delete();
-      } else {
-        const docRef = doc(db, QUIZZES_COLLECTION, id);
-        await deleteDoc(docRef);
-      }
+      const docRef = doc(db, QUIZZES_COLLECTION, id);
+      await deleteDoc(docRef);
       
       console.log(`[FirebaseQuizService] Deleted quiz: ${id}`);
     } catch (error) {
@@ -355,3 +374,4 @@ export const FirebaseQuizService = {
     }
   },
 };
+

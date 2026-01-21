@@ -22,10 +22,10 @@ export async function GET(req: Request, { params }: RouteParams) {
     }
 
     return NextResponse.json(quiz);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API] GET /api/quizzes/[id] error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch quiz', message: error.message || 'Unknown error' },
+      { error: 'Failed to fetch quiz' },
       { status: 500 }
     );
   }
@@ -41,10 +41,10 @@ export async function PUT(req: Request, { params }: RouteParams) {
     const body = await req.json();
     const quiz = await FirebaseQuizService.update(id, body);
     return NextResponse.json(quiz);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API] PUT /api/quizzes/[id] error:', error);
     return NextResponse.json(
-      { error: 'Failed to update quiz', message: error.message || 'Unknown error' },
+      { error: 'Failed to update quiz' },
       { status: 500 }
     );
   }
@@ -59,10 +59,10 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     const { id } = await params;
     await FirebaseQuizService.delete(id);
     return new NextResponse(null, { status: 204 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API] DELETE /api/quizzes/[id] error:', error);
     return NextResponse.json(
-      { error: 'Failed to delete quiz', message: error.message || 'Unknown error' },
+      { error: 'Failed to delete quiz' },
       { status: 500 }
     );
   }

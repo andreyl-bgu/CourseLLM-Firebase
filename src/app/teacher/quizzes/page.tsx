@@ -12,7 +12,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/components/AuthProviderClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,8 +27,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useAuth } from '@/components/AuthProviderClient';
 import { QuizApiClient } from '@/lib/quiz-api-client';
-import { Quiz, Course, QuizAttempt } from '@/lib/types';
+import { Quiz, QuizAttempt, Course } from '@/lib/types';
 import { Plus, BarChart, Users, Trophy, BookOpen, Loader2, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -70,12 +70,8 @@ export default function TeacherQuizzesPage() {
       const allAttemptsArrays = await Promise.all(attemptsPromises);
       const flatAttempts = allAttemptsArrays.flat();
       
-      console.log('[TeacherQuizzes] Fetched data:', {
-        quizzes: quizzes.length,
-        courses: coursesResponse.length,
-        attempts: flatAttempts.length,
-        teacherId: firebaseUser.uid
-      });
+      console.log('[TeacherQuizzes] Fetched quizzes:', quizzes.length);
+      console.log('[TeacherQuizzes] Fetched attempts:', flatAttempts.length);
       
       setAllAttempts(flatAttempts);
     } catch (error) {
@@ -274,7 +270,7 @@ export default function TeacherQuizzesPage() {
                         </Badge>
                       </div>
                       <CardDescription>
-                        {course?.title || 'Unknown Course'} • {quiz.questions.length} questions • {quiz.totalPoints} points
+                        {course?.title} • {quiz.questions.length} questions • {quiz.totalPoints} points
                       </CardDescription>
                     </div>
                   </div>
@@ -387,3 +383,4 @@ export default function TeacherQuizzesPage() {
     </div>
   );
 }
+

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 
 function OnboardingContent() {
@@ -15,14 +16,13 @@ function OnboardingContent() {
   const [department, setDepartment] = useState(profile?.department || "")
   const [coursesInput, setCoursesInput] = useState("")
   const [courses, setCourses] = useState<string[]>(profile?.courses || [])
+  // Allow users to change their role even if they already have one
   const [role, setRole] = useState<"student" | "teacher">((profile?.role as any) || "student")
   const [saving, setSaving] = useState(false)
   const router = useRouter()
 
   React.useEffect(() => {
-    if (!firebaseUser) {
-      router.replace("/login")
-    }
+    if (!firebaseUser) router.replace("/login")
   }, [firebaseUser, router])
 
   if (!firebaseUser) return null
@@ -40,9 +40,11 @@ function OnboardingContent() {
   const handleSave = async () => {
     if (!firebaseUser) return
     if (!role || !department) {
+      // lightweight client validation
       alert("Please choose a role and enter your department.")
       return
     }
+    // Courses are optional for both students and teachers
     setSaving(true)
     try {
       const userDoc = doc(db, "users", firebaseUser.uid)
@@ -70,8 +72,7 @@ function OnboardingContent() {
         console.warn("refreshProfile failed after onboarding save:", e)
       }
 
-      const targetPath = role === "student" ? "/student" : "/teacher"
-      router.replace(targetPath)
+      router.replace(role === "student" ? "/student" : "/teacher")
     } catch (err) {
       console.error("Failed saving profile:", err)
       alert("Failed to save profile. Try again.")
@@ -109,6 +110,9 @@ function OnboardingContent() {
 
             <div>
               <label className="block text-sm font-medium mb-1">Courses</label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Optional: Add courses {role === "teacher" ? "you teach" : "you're enrolled in"}.
+              </p>
               <div className="flex gap-2">
                 <Input value={coursesInput} onChange={(e) => setCoursesInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCourseFromInput()} placeholder="Add a course and press Enter" />
                 <Button onClick={addCourseFromInput}>Add</Button>

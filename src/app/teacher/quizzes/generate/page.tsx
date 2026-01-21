@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/components/AuthProviderClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,13 +23,12 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { QuizApiClient } from '@/lib/quiz-api-client';
 import { Quiz, QuizQuestion, Course } from '@/lib/types';
 import { Sparkles, Loader2, CheckCircle, AlertCircle, ArrowLeft, Save } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 // Quiz generation is now handled via API route
 
 export default function GenerateQuizPage() {
   const router = useRouter();
   const { firebaseUser } = useAuth();
-  const { toast } = useToast();
 
   // Form state
   const [courses, setCourses] = useState<Course[]>([]);
@@ -48,78 +48,30 @@ export default function GenerateQuizPage() {
   // Fetch courses from Firebase
   useEffect(() => {
     const fetchCourses = async () => {
-      console.log('[QuizGenerate] useEffect triggered, firebaseUser:', firebaseUser?.uid || 'null');
+      if (!firebaseUser?.uid) return;
       
-      if (!firebaseUser?.uid) {
-        console.log('[QuizGenerate] No firebaseUser.uid, skipping fetch');
-        setIsLoadingCourses(false);
-        return;
-      }
-      
-      console.log('[QuizGenerate] Starting fetch for teacherId:', firebaseUser.uid);
       setIsLoadingCourses(true);
-      
       try {
-        const url = `/api/courses?teacherId=${firebaseUser.uid}`;
-        console.log('[QuizGenerate] Fetching from:', url);
-        
-        const response = await fetch(url);
-        console.log('[QuizGenerate] Response status:', response.status, response.statusText);
-        
+        const response = await fetch(`/api/courses?teacherId=${firebaseUser.uid}`);
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[QuizGenerate] Response error:', response.status, errorText);
-          throw new Error(`Failed to fetch courses: ${response.status} ${response.statusText}`);
+          throw new Error('Failed to fetch courses');
         }
-        
         const data = await response.json();
-        console.log('[QuizGenerate] Fetched courses response:', {
-          isArray: Array.isArray(data),
-          count: Array.isArray(data) ? data.length : 0,
-          data: data,
-          teacherId: firebaseUser.uid
-        });
-        
-        // Ensure we have an array and filter out any invalid courses
-        const validCourses = Array.isArray(data) 
-          ? data.filter(c => {
-              const isValid = c && c.id && c.title;
-              if (!isValid) {
-                console.warn('[QuizGenerate] Invalid course filtered out:', c);
-              }
-              return isValid;
-            })
-          : [];
-        
-        console.log('[QuizGenerate] Valid courses after filtering:', {
-          count: validCourses.length,
-          courses: validCourses.map(c => ({ id: c.id, title: c.title }))
-        });
-        
-        setCourses(validCourses);
-        
-        if (validCourses.length === 0) {
-          console.warn('[QuizGenerate] No valid courses found for teacher:', firebaseUser.uid);
-        }
+        setCourses(data);
       } catch (error) {
-        console.error('[QuizGenerate] Error fetching courses:', error);
-        console.error('[QuizGenerate] Error details:', {
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined
-        });
+        console.error('Error fetching courses:', error);
         toast({
           title: 'Error',
-          description: error instanceof Error ? error.message : 'Failed to load courses. Please try again.',
+          description: 'Failed to load courses. Please try again.',
           variant: 'destructive',
         });
-        setCourses([]);
       } finally {
         setIsLoadingCourses(false);
       }
     };
 
     fetchCourses();
-  }, [firebaseUser, toast]);
+  }, [firebaseUser]);
 
   // Get selected course
   const selectedCourseData = courses.find((c) => c.id === selectedCourse);
@@ -197,8 +149,6 @@ export default function GenerateQuizPage() {
       finalCourseContent = courseMetadata || `Course content for ${courseTitle || 'this course'}`;
       finalLearningObjectives = learningObjectives.trim() || 
         `Assess understanding of ${courseTitle || 'course'} concepts and principles based on the quiz title and topics specified.`;
-      
-      console.log('[QuizGenerate] Using course metadata as fallback (no materials available)');
     }
 
     setIsGenerating(true);
@@ -213,15 +163,7 @@ export default function GenerateQuizPage() {
       // Request extra questions to account for validation filtering
       // Request 80% more than needed to ensure we get the desired number after filtering
       const requestedQuestions = Math.ceil(numberOfQuestions * 1.8);
-      
-      console.log('[QuizGenerate] Sending request with:', {
-        courseContentLength: finalCourseContent.length,
-        learningObjectivesLength: finalLearningObjectives.length,
-        numberOfQuestions: requestedQuestions,
-        difficulty,
-        topics: topicList
-      });
-      
+
       // Call API route to generate quiz
       const response = await fetch('/api/quizzes/generate', {
         method: 'POST',
@@ -297,13 +239,18 @@ export default function GenerateQuizPage() {
       // Extract unique topics
       const uniqueTopics = [...new Set(generatedQuestions.map((q) => q.topic))];
 
+      // Check if user is authenticated
+      if (!firebaseUser?.uid) {
+        throw new Error('You must be logged in to save a quiz');
+      }
+
       // Create quiz object (without id and createdAt - Firebase will generate these)
       const quizData = {
         courseId: selectedCourse,
         title: quizTitle,
         description: quizDescription,
         questions: generatedQuestions,
-        createdBy: firebaseUser?.uid || '',
+        createdBy: firebaseUser.uid,
         totalPoints,
         difficulty,
         topics: uniqueTopics,
@@ -362,73 +309,72 @@ export default function GenerateQuizPage() {
             <CardContent className="space-y-6">
               {/* Course Selection */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="course">Course *</Label>
-                  {!isLoadingCourses && (
+                <Label htmlFor="course">Course *</Label>
+                {isLoadingCourses ? (
+                  <div className="flex items-center gap-2 py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm text-gray-600">Loading courses...</span>
+                  </div>
+                ) : courses.length === 0 ? (
+                  <div className="py-2">
+                    <p className="text-sm text-yellow-600 mb-2">
+                      No courses found. Please create a course first.
+                    </p>
                     <Button
-                      type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={async () => {
-                        if (!firebaseUser?.uid) return;
-                        setIsLoadingCourses(true);
-                        try {
-                          const response = await fetch(`/api/courses?teacherId=${firebaseUser.uid}`);
-                          if (!response.ok) {
-                            throw new Error('Failed to fetch courses');
-                          }
-                          const data = await response.json();
-                          const validCourses = Array.isArray(data) 
-                            ? data.filter(c => c && c.id && c.title)
-                            : [];
-                          setCourses(validCourses);
-                          console.log('[QuizGenerate] Refreshed courses:', validCourses.length);
-                        } catch (error) {
-                          console.error('Error refreshing courses:', error);
-                        } finally {
-                          setIsLoadingCourses(false);
-                        }
-                      }}
+                      onClick={() => router.push('/teacher/courses')}
                     >
-                      <Loader2 className="h-3 w-3 mr-1" />
-                      Refresh
+                      Create Course
                     </Button>
-                  )}
-                </div>
-                <Select value={selectedCourse} onValueChange={setSelectedCourse} disabled={isLoadingCourses}>
-                  <SelectTrigger id="course">
-                    <SelectValue placeholder={isLoadingCourses ? "Loading courses..." : `Select a course (${courses.length} available)`} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isLoadingCourses ? (
-                      <div className="p-2 text-sm text-gray-500">Loading courses...</div>
-                    ) : courses.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">
-                        No courses available. <a href="/teacher/courses" className="text-blue-600 underline">Create a course first</a>.
+                  </div>
+                ) : (
+                  <>
+                    <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                      <SelectTrigger id="course">
+                        <SelectValue placeholder="Select a course" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courses.map((course) => (
+                          <SelectItem key={course.id} value={course.id}>
+                            {course.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedCourseData && (
+                      <div className="space-y-1 mt-2">
+                        {selectedCourseData.materials?.length > 0 ? (
+                          <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                            <p className="text-sm font-medium text-green-800">
+                              ✓ {selectedCourseData.materials.length} material(s) found
+                            </p>
+                            <p className="text-sm text-green-700 mt-1">
+                              Quiz will be generated based on the uploaded course materials.
+                            </p>
+                            <p className="text-xs text-green-600 mt-1">
+                              Materials: {selectedCourseData.materials.slice(0, 3).map(m => m.title).join(', ')}
+                              {selectedCourseData.materials.length > 3 && ` and ${selectedCourseData.materials.length - 3} more...`}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            <p className="text-sm text-blue-800">
+                              ℹ️ No materials uploaded for this course.
+                            </p>
+                            <p className="text-sm text-blue-700 mt-1">
+                              Quiz will be generated using course title, description, and learning objectives.
+                            </p>
+                            <p className="text-xs text-blue-600 mt-2">
+                              <Link href={`/teacher/courses/${selectedCourseData.id}`} className="underline">
+                                Add materials to this course →
+                              </Link>
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      courses.map((course) => (
-                        <SelectItem key={course.id} value={course.id}>
-                          {course.title || `Course ${course.id}`}
-                        </SelectItem>
-                      ))
                     )}
-                  </SelectContent>
-                </Select>
-                {selectedCourseData && (
-                  <p className="text-sm text-gray-600">
-                    {selectedCourseData.materials?.length || 0} material(s) available
-                  </p>
-                )}
-                {courses.length > 0 && !isLoadingCourses && (
-                  <p className="text-xs text-gray-500">
-                    {courses.length} course{courses.length !== 1 ? 's' : ''} loaded
-                  </p>
-                )}
-                {courses.length === 0 && !isLoadingCourses && (
-                  <p className="text-sm text-blue-600">
-                    <a href="/teacher/courses" className="underline">Create a course</a> to generate quizzes.
-                  </p>
+                  </>
                 )}
               </div>
 

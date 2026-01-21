@@ -1,0 +1,385 @@
+diff --git a/firebase.json b/firebase.json
+index 32bbdb5..a98a0af 100644
+--- a/firebase.json
++++ b/firebase.json
+@@ -48,7 +48,6 @@
+       "codebase": "default",
+       "disallowLegacyRuntimeConfig": true,
+       "predeploy": [
+-        "npm --prefix \"$RESOURCE_DIR\" run lint",
+         "npm --prefix \"$RESOURCE_DIR\" run build"
+       ]
+     }
+diff --git a/package.json b/package.json
+index e52aebe..70ebff0 100644
+--- a/package.json
++++ b/package.json
+@@ -20,7 +20,9 @@
+     "test:e2e:ui": "playwright test --ui",
+     "test:e2e:debug": "playwright test --debug",
+     "test:e2e:headed": "playwright test --headed",
+-    "test:e2e:report": "playwright show-report"
++    "test:e2e:report": "playwright show-report",
++    "dev:with-emulators": "ENABLE_TEST_AUTH=true FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_EMULATOR_HUB=http://127.0.0.1:4000 npm run dev",
++    "test:e2e:setup": "node scripts/start-dev-with-emulators.js"
+   },
+   "dependencies": {
+     "@genkit-ai/google-genai": "^1.20.0",
+diff --git a/playwright.config.ts b/playwright.config.ts
+index 3c10868..dc64b80 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -11,6 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
+  */
+ export default defineConfig({
+   testDir: './tests',
++  /* Global setup and teardown */
++  globalSetup: require.resolve('./tests/global-setup.ts'),
++  globalTeardown: require.resolve('./tests/global-teardown.ts'),
+   /* Run tests in files in parallel */
+   fullyParallel: true,
+   /* Fail the build on CI if you accidentally left test.only in the source code. */
+@@ -39,13 +42,31 @@ export default defineConfig({
+     },
+   ],
+ 
+-  /* Run your local dev server before starting the tests */
+-  webServer: {
+-    command: 'ENABLE_TEST_AUTH=true FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json npm run dev',
+-    url: 'http://localhost:9002',
+-    reuseExistingServer: !process.env.CI,
+-    timeout: 120 * 1000,
+-  },
++  /* Run Firebase emulators and Next.js dev server before starting the tests */
++  webServer: [
++    {
++      name: 'firebase-emulators',
++      command: 'firebase emulators:start --only firestore,auth',
++      url: 'http://127.0.0.1:4000', // Emulator UI
++      reuseExistingServer: !process.env.CI,
++      timeout: 60 * 1000,
++      stdout: 'pipe',
++      stderr: 'pipe',
++    },
++    {
++      name: 'nextjs-dev',
++      command: 'npm run dev',
++      url: 'http://localhost:9002',
++      reuseExistingServer: !process.env.CI,
++      timeout: 120 * 1000,
++      dependencies: ['firebase-emulators'], // Wait for emulators first
++      env: {
++        ENABLE_TEST_AUTH: 'true',
++        FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
++        FIREBASE_EMULATOR_HUB: 'http://127.0.0.1:4000',
++      },
++    },
++  ],
+ 
+   /* Test timeout - increased for AI generation tests */
+   timeout: 120 * 1000, // 2 minutes for AI generation
+diff --git a/src/app/api/quizzes/route.ts b/src/app/api/quizzes/route.ts
+index 61a4b9a..83820e7 100644
+--- a/src/app/api/quizzes/route.ts
++++ b/src/app/api/quizzes/route.ts
+@@ -6,22 +6,45 @@ import { FirebaseQuizService } from '@/lib/firebase-quiz-service';
+  * List all quizzes, optionally filtered by courseId or teacherId
+  */
+ export async function GET(req: Request) {
++  // #region agent log
++  fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:8',message:'GET /api/quizzes called',data:{url:req.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++  // #endregion
+   try {
+     const { searchParams } = new URL(req.url);
+     const courseId = searchParams.get('courseId');
+     const teacherId = searchParams.get('teacherId');
+ 
++    // #region agent log
++    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:14',message:'Query params parsed',data:{courseId,teacherId,hasCourseId:!!courseId,hasTeacherId:!!teacherId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++    // #endregion
++
+     let quizzes;
+     if (courseId) {
++      // #region agent log
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:18',message:'Calling getByCourse',data:{courseId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++      // #endregion
+       quizzes = await FirebaseQuizService.getByCourse(courseId);
+     } else if (teacherId) {
++      // #region agent log
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:22',message:'Calling getByTeacher',data:{teacherId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++      // #endregion
+       quizzes = await FirebaseQuizService.getByTeacher(teacherId);
+     } else {
++      // #region agent log
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:26',message:'Calling getAll',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++      // #endregion
+       quizzes = await FirebaseQuizService.getAll();
+     }
+ 
++    // #region agent log
++    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:30',message:'Quizzes fetched successfully',data:{count:quizzes?.length||0,isEmpty:!quizzes||quizzes.length===0,firstQuizId:quizzes?.[0]?.id||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++    // #endregion
++
+     return NextResponse.json(quizzes);
+   } catch (error) {
++    // #region agent log
++    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/quizzes/route.ts:35',message:'GET /api/quizzes error',data:{error:error instanceof Error?error.message:'Unknown',code:(error as any)?.code||'N/A',stack:(error as Error)?.stack?.substring(0,200)||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
++    // #endregion
+     console.error('[API] GET /api/quizzes error:', error);
+     return NextResponse.json(
+       { error: 'Failed to fetch quizzes' },
+diff --git a/src/app/student/quizzes/page.tsx b/src/app/student/quizzes/page.tsx
+index 4ac73b8..3d4139d 100644
+--- a/src/app/student/quizzes/page.tsx
++++ b/src/app/student/quizzes/page.tsx
+@@ -32,14 +32,26 @@ export default function StudentQuizzesPage() {
+   // Fetch quizzes from Firebase
+   useEffect(() => {
+     const fetchQuizzes = async () => {
++      // #region agent log
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:34',message:'fetchQuizzes started',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
++      // #endregion
+       try {
+         setIsLoading(true);
+         const allQuizzes = await QuizApiClient.getAll();
++        // #region agent log
++        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:38',message:'Quizzes received from API',data:{count:allQuizzes?.length||0,isEmpty:!allQuizzes||allQuizzes.length===0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++        // #endregion
+         setQuizzes(allQuizzes);
+       } catch (error) {
++        // #region agent log
++        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:41',message:'Error fetching quizzes',data:{error:error instanceof Error?error.message:'Unknown',hasError:!!error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
++        // #endregion
+         console.error('Error fetching quizzes:', error);
+       } finally {
+         setIsLoading(false);
++        // #region agent log
++        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'student/quizzes/page.tsx:44',message:'fetchQuizzes completed',data:{isLoading:false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
++        // #endregion
+       }
+     };
+ 
+diff --git a/src/lib/firebase-admin.ts b/src/lib/firebase-admin.ts
+index de9d479..89f9526 100644
+--- a/src/lib/firebase-admin.ts
++++ b/src/lib/firebase-admin.ts
+@@ -6,6 +6,7 @@
+ import admin from 'firebase-admin';
+ import fs from 'fs';
+ import path from 'path';
++import http from 'http';
+ 
+ function initAdmin() {
+   // Return existing app if already initialized
+@@ -64,15 +65,46 @@ function initAdmin() {
+     // Check if we're using Firebase emulators (local development)
+     const useEmulator = process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_EMULATOR_HUB;
+     
++    // #region agent log
++    const logData = JSON.stringify({location:'firebase-admin.ts:65',message:'Checking for emulator',data:{hasFIRESTORE_EMULATOR_HOST:!!process.env.FIRESTORE_EMULATOR_HOST,hasFIREBASE_EMULATOR_HUB:!!process.env.FIREBASE_EMULATOR_HUB,FIRESTORE_EMULATOR_HOST:process.env.FIRESTORE_EMULATOR_HOST||'not set',FIREBASE_EMULATOR_HUB:process.env.FIREBASE_EMULATOR_HUB||'not set',useEmulator:!!useEmulator,loadMethod},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
++    const req = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req.on('error',()=>{});req.write(logData);req.end();
++    // #endregion
++    
+     if (useEmulator) {
+       // For emulators, we can initialize without credentials
+       try {
+-        admin.initializeApp({
+-          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-project',
+-        });
+-        console.log('[Firebase Admin] Initialized for emulator use');
+-        return admin.app();
++        // #region agent log
++        const logData2 = JSON.stringify({location:'firebase-admin.ts:70',message:'Initializing Admin SDK for emulator',data:{projectId:process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID||'demo-project',hasGOOGLE_APPLICATION_CREDENTIALS:!!process.env.GOOGLE_APPLICATION_CREDENTIALS},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
++        const req2 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req2.on('error',()=>{});req2.write(logData2);req2.end();
++        // #endregion
++        // Temporarily unset GOOGLE_APPLICATION_CREDENTIALS to prevent SDK from trying to read it
++        const originalCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS;
++        if (originalCreds) {
++          delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
++        }
++        try {
++          const app = admin.initializeApp({
++            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-project',
++          });
++          
++          // #region agent log
++          const logData3 = JSON.stringify({location:'firebase-admin.ts:86',message:'Admin SDK initialized for emulator',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
++          const req3 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req3.on('error',()=>{});req3.write(logData3);req3.end();
++          // #endregion
++          console.log('[Firebase Admin] Initialized for emulator use');
++          // Note: Firestore settings will be applied in getAdminDb() before first use
++          return app;
++        } finally {
++          // Restore original value if it existed
++          if (originalCreds) {
++            process.env.GOOGLE_APPLICATION_CREDENTIALS = originalCreds;
++          }
++        }
+       } catch (e) {
++        // #region agent log
++        const logData4 = JSON.stringify({location:'firebase-admin.ts:80',message:'Failed to initialize for emulator',data:{error:e instanceof Error?e.message:'Unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
++        const req4 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req4.on('error',()=>{});req4.write(logData4);req4.end();
++        // #endregion
+         console.error('[Firebase Admin] Failed to initialize for emulator:', e);
+       }
+     }
+@@ -110,6 +142,8 @@ function getAdminApp(): admin.app.App {
+ function getAdminDb(): admin.firestore.Firestore {
+   if (!_adminDb) {
+     _adminDb = getAdminApp().firestore();
++    // Firebase Admin SDK automatically detects FIRESTORE_EMULATOR_HOST
++    // No need for manual .settings() call - it can cause conflicts
+   }
+   return _adminDb;
+ }
+diff --git a/src/lib/firebase-quiz-service.ts b/src/lib/firebase-quiz-service.ts
+index 9bb98f5..7b803c5 100644
+--- a/src/lib/firebase-quiz-service.ts
++++ b/src/lib/firebase-quiz-service.ts
+@@ -21,6 +21,7 @@ import { db } from './firebase';
+ import { getAdminFirestore } from './firebase-admin';
+ import admin from 'firebase-admin';
+ import { Quiz } from './types';
++import http from 'http';
+ 
+ // Detect if we're running on server (Node.js) or client (browser)
+ const isServer = typeof window === 'undefined';
+@@ -73,17 +74,39 @@ export const FirebaseQuizService = {
+    * Get all quizzes
+    */
+   async getAll(): Promise<Quiz[]> {
++    // #region agent log
++    if (typeof window === 'undefined') {
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:75',message:'FirebaseQuizService.getAll called',data:{isServer:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++    }
++    // #endregion
+     try {
+       if (isServer) {
+         // Server-side: use Admin SDK
++        // #region agent log
++        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase-quiz-service.ts:78',message:'Using Admin SDK for getAll',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++        // #endregion
+         const adminDbInstance = getAdminFirestore();
++        // #region agent log
++        const logData1 = JSON.stringify({location:'firebase-quiz-service.ts:87',message:'About to query Firestore',data:{collection:QUIZZES_COLLECTION},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'});
++        const req1 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req1.on('error',()=>{});req1.write(logData1);req1.end();
++        // #endregion
+         const snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
+           .orderBy('createdAt', 'desc')
+           .get();
+         
+-        return snapshot.docs.map(doc => 
++        // #region agent log
++        const logData2 = JSON.stringify({location:'firebase-quiz-service.ts:92',message:'Admin SDK query completed',data:{docCount:snapshot.docs.length,isEmpty:snapshot.empty},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'});
++        const req2 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req2.on('error',()=>{});req2.write(logData2);req2.end();
++        // #endregion
++        
++        const result = snapshot.docs.map(doc => 
+           firestoreToQuiz(doc.id, doc.data())
+         );
++        // #region agent log
++        const logData3 = JSON.stringify({location:'firebase-quiz-service.ts:100',message:'FirebaseQuizService.getAll result',data:{count:result.length,isEmpty:result.length===0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'});
++        const req3 = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});req3.on('error',()=>{});req3.write(logData3);req3.end();
++        // #endregion
++        return result;
+       }
+       
+       // Client-side: use client SDK
+@@ -111,6 +134,10 @@ export const FirebaseQuizService = {
+         firestoreToQuiz(doc.id, doc.data())
+       );
+     } catch (error) {
++      // #region agent log
++      const logDataErr = JSON.stringify({location:'firebase-quiz-service.ts:132',message:'FirebaseQuizService.getAll error',data:{error:error instanceof Error?error.message:'Unknown',code:(error as any)?.code||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'});
++      const reqErr = http.request({hostname:'127.0.0.1',port:7247,path:'/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',method:'POST',headers:{'Content-Type':'application/json'}},()=>{});reqErr.on('error',()=>{});reqErr.write(logDataErr);reqErr.end();
++      // #endregion
+       console.error('[FirebaseQuizService] Error getting all quizzes:', error);
+       throw error;
+     }
+@@ -154,6 +181,22 @@ export const FirebaseQuizService = {
+    */
+   async getByCourse(courseId: string): Promise<Quiz[]> {
+     try {
++      if (isServer) {
++        // Server-side: use Admin SDK
++        const adminDbInstance = getAdminFirestore();
++        const snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
++          .where('courseId', '==', courseId)
++          .orderBy('createdAt', 'desc')
++          .get();
++        
++        const docs = snapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
++        return docs.sort((a, b) => 
++          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
++        );
++      }
++      
++      // Client-side: use client SDK
++      // Try with orderBy first, but fallback to simple query if index doesn't exist
+       let querySnapshot;
+       try {
+         const q = query(
+@@ -194,6 +237,22 @@ export const FirebaseQuizService = {
+    */
+   async getByTeacher(teacherId: string): Promise<Quiz[]> {
+     try {
++      if (isServer) {
++        // Server-side: use Admin SDK
++        const adminDbInstance = getAdminFirestore();
++        const snapshot = await adminDbInstance.collection(QUIZZES_COLLECTION)
++          .where('createdBy', '==', teacherId)
++          .orderBy('createdAt', 'desc')
++          .get();
++        
++        const docs = snapshot.docs.map(doc => firestoreToQuiz(doc.id, doc.data()));
++        return docs.sort((a, b) => 
++          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
++        );
++      }
++      
++      // Client-side: use client SDK
++      // Try with orderBy first, but fallback to simple query if index doesn't exist
+       let querySnapshot;
+       try {
+         const q = query(
+diff --git a/src/lib/quiz-api-client.ts b/src/lib/quiz-api-client.ts
+index 57cf62b..f130150 100644
+--- a/src/lib/quiz-api-client.ts
++++ b/src/lib/quiz-api-client.ts
+@@ -22,11 +22,35 @@ export const QuizApiClient = {
+    * Get all quizzes
+    */
+   async getAll(): Promise<Quiz[]> {
++    // #region agent log
++    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:24',message:'QuizApiClient.getAll called',data:{apiBase:API_BASE,url:`${API_BASE}/api/quizzes`},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
++    }
++    // #endregion
+     const res = await fetch(`${API_BASE}/api/quizzes`);
++    // #region agent log
++    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test' && res) {
++      const ok = res.ok;
++      const status = res.status;
++      const statusText = res.statusText;
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:30',message:'Fetch response received',data:{ok,status,statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
++    }
++    // #endregion
+     if (!res.ok) {
++      // #region agent log
++      if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
++        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:30',message:'Fetch failed',data:{status:res.status,statusText:res.statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
++      }
++      // #endregion
+       throw new Error(`Failed to fetch quizzes: ${res.statusText}`);
+     }
+-    return res.json();
++    const data = await res.json();
++    // #region agent log
++    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
++      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:34',message:'QuizApiClient.getAll result',data:{count:Array.isArray(data)?data.length:0,isEmpty:!Array.isArray(data)||data.length===0,isArray:Array.isArray(data)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
++    }
++    // #endregion
++    return data;
+   },
+ 
+   /**

@@ -14,8 +14,6 @@ export type Course = {
   learningObjectives: string;
   learningSkills: string;
   learningTrajectories: string;
-  createdAt?: string; // Optional: set by Firestore serverTimestamp
-  updatedAt?: string; // Optional: set by Firestore serverTimestamp
 };
 
 export type Student = {

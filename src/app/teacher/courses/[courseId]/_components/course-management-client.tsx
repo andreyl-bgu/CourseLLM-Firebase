@@ -497,7 +497,7 @@ export function CourseManagementClient({ course: initialCourse, teacherId }: { c
                     <p className="text-sm text-muted-foreground mb-2">
                       Upload .md, .txt, .doc, .pdf, or .ppt files (max 5MB)
                     </p>
-                     <div className="flex gap-2">
+                    <div className="flex gap-2">
                         <Input 
                           id="material-file" 
                           type="file" 
@@ -506,14 +506,14 @@ export function CourseManagementClient({ course: initialCourse, teacherId }: { c
                           disabled={isUploading}
                           className="cursor-pointer"
                         />
-                     </div>
+                    </div>
                     {isUploading && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Uploading...
                       </div>
                     )}
-                  </div>
+                 </div>
               </div>
             </CardContent>
           </Card>

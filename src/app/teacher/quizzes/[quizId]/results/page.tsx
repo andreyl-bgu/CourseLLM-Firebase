@@ -15,18 +15,66 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { QuizApiClient } from '@/lib/quiz-api-client';
-import { courses, students } from '@/lib/mock-data';
-import { Quiz, QuizAttempt } from '@/lib/types';
+import { Quiz, QuizAttempt, Course } from '@/lib/types';
 import { ArrowLeft, Users, Trophy, TrendingUp, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { useAuth } from '@/components/AuthProviderClient';
+
+type StudentInfo = {
+  uid: string;
+  displayName?: string;
+  email?: string;
+};
 
 export default function QuizResultsPage() {
   const params = useParams();
   const router = useRouter();
+  const { firebaseUser } = useAuth();
   const quizId = params.quizId as string;
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [course, setCourse] = useState<Course | null>(null);
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+  const [studentInfoMap, setStudentInfoMap] = useState<Record<string, StudentInfo>>({});
   const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch student profiles
+  const fetchStudentInfo = async (studentIds: string[]) => {
+    const infoMap: Record<string, StudentInfo> = {};
+    
+    // Fetch student profiles from Firebase
+    const fetchPromises = studentIds.map(async (studentId) => {
+      try {
+        const docRef = doc(db, 'users', studentId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          infoMap[studentId] = {
+            uid: studentId,
+            displayName: data.displayName || data.email?.split('@')[0] || 'Unknown',
+            email: data.email,
+          };
+        } else {
+          infoMap[studentId] = {
+            uid: studentId,
+            displayName: 'Unknown Student',
+            email: undefined,
+          };
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch student info for ${studentId}:`, error);
+        infoMap[studentId] = {
+          uid: studentId,
+          displayName: 'Unknown Student',
+          email: undefined,
+        };
+      }
+    });
+
+    await Promise.all(fetchPromises);
+    return infoMap;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,14 +84,47 @@ export default function QuizResultsPage() {
         // Fetch quiz and attempts from API
         const [foundQuiz, foundAttempts] = await Promise.all([
           QuizApiClient.getById(quizId),
-          QuizApiClient.getAttemptsByQuiz(quizId)
+          QuizApiClient.getAttemptsByQuiz(quizId).catch((err) => {
+            console.error('Error fetching quiz attempts:', err);
+            return [];
+          })
         ]);
+        
+        console.log('[QuizResults] Fetched quiz:', foundQuiz?.id);
+        console.log('[QuizResults] Fetched attempts:', foundAttempts.length, foundAttempts);
         
         setQuiz(foundQuiz || null);
         
+        // Fetch course if quiz has a courseId
+        if (foundQuiz?.courseId && firebaseUser?.uid) {
+          try {
+            // Fetch course from Firebase
+            const courseResponse = await fetch(`/api/courses?teacherId=${firebaseUser.uid}`);
+            if (courseResponse.ok) {
+              const allCourses = await courseResponse.json();
+              const foundCourse = allCourses.find((c: Course) => c.id === foundQuiz.courseId);
+              if (foundCourse) {
+                setCourse(foundCourse);
+              }
+            }
+          } catch (courseError) {
+            console.warn('Error fetching course:', courseError);
+          }
+        }
+        
         // Filter only completed attempts
         const completedAttempts = foundAttempts.filter(a => a.status === 'completed');
+        console.log('[QuizResults] Completed attempts:', completedAttempts.length);
         setAttempts(completedAttempts);
+
+        // Fetch student info for all unique student IDs
+        const uniqueStudentIds = [...new Set(completedAttempts.map(a => a.studentId))];
+        console.log('[QuizResults] Unique student IDs:', uniqueStudentIds);
+        if (uniqueStudentIds.length > 0) {
+          const studentInfo = await fetchStudentInfo(uniqueStudentIds);
+          console.log('[QuizResults] Fetched student info:', studentInfo);
+          setStudentInfoMap(studentInfo);
+        }
       } catch (error) {
         console.error('Error fetching quiz results:', error);
       } finally {
@@ -52,7 +133,7 @@ export default function QuizResultsPage() {
     };
 
     fetchData();
-  }, [quizId]);
+  }, [quizId, firebaseUser]);
 
   if (isLoading) {
     return (
@@ -87,7 +168,6 @@ export default function QuizResultsPage() {
     );
   }
 
-  const course = courses.find((c) => c.id === quiz.courseId);
 
   // Calculate statistics
   const totalAttempts = attempts.length;
@@ -101,10 +181,10 @@ export default function QuizResultsPage() {
     ? Math.min(...attempts.map(a => (a.score / a.maxScore) * 100))
     : 0;
 
-  // Get student info (mock - in production, fetch from Firebase)
+  // Get student name from Firebase data
   const getStudentName = (studentId: string) => {
-    const student = students.find(s => s.id === studentId);
-    return student?.name || 'Unknown Student';
+    const studentInfo = studentInfoMap[studentId];
+    return studentInfo?.displayName || studentInfo?.email?.split('@')[0] || 'Unknown Student';
   };
 
   // Get performance color

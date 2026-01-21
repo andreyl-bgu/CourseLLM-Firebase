@@ -14,28 +14,43 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/components/AuthProviderClient';
 import { QuizApiClient } from '@/lib/quiz-api-client';
-import { courses, quizAttempts } from '@/lib/mock-data';
+import { courses } from '@/lib/mock-data';
 import { Quiz, QuizAttempt } from '@/lib/types';
 import { BookOpen, Clock, Target, Trophy, Loader2 } from 'lucide-react';
 
-// Mock current student ID (in production, get from auth)
-const CURRENT_STUDENT_ID = 'student-1';
-
 export default function StudentQuizzesPage() {
+  const { firebaseUser } = useAuth();
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [studentAttempts, setStudentAttempts] = useState<QuizAttempt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch quizzes from Firebase
+  // Fetch quizzes and student attempts from Firebase
   useEffect(() => {
-    const fetchQuizzes = async () => {
+    const fetchData = async () => {
+      if (!firebaseUser?.uid) return;
+
       try {
         setIsLoading(true);
-        const allQuizzes = await QuizApiClient.getAll();
+        
+        // Fetch quizzes and student attempts in parallel
+        const [allQuizzes, attempts] = await Promise.all([
+          QuizApiClient.getAll(),
+          QuizApiClient.getAttemptsByStudent(firebaseUser.uid).catch((err) => {
+            console.error('Error fetching student attempts:', err);
+            return [];
+          })
+        ]);
+        
+        console.log('[StudentQuizzes] Fetched quizzes:', allQuizzes.length);
+        console.log('[StudentQuizzes] Fetched attempts:', attempts.length, attempts);
+        
         setQuizzes(allQuizzes);
+        setStudentAttempts(attempts);
       } catch (error) {
         console.error('Error fetching quizzes:', error);
       } finally {
@@ -43,13 +58,8 @@ export default function StudentQuizzesPage() {
       }
     };
 
-    fetchQuizzes();
-  }, []);
-
-  // Get student's quiz attempts
-  const studentAttempts = quizAttempts.filter(
-    (attempt) => attempt.studentId === CURRENT_STUDENT_ID
-  );
+    fetchData();
+  }, [firebaseUser]);
 
   // Get student's enrolled courses (mock - all courses for now)
   const enrolledCourses = courses;
@@ -257,3 +267,4 @@ export default function StudentQuizzesPage() {
     </div>
   );
 }
+

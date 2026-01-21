@@ -28,10 +28,10 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json(attempts);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API] GET /api/attempts error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch attempts', message: error.message || 'Unknown error' },
+      { error: 'Failed to fetch attempts' },
       { status: 500 }
     );
   }
@@ -44,12 +44,34 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    
+    console.log('[API] POST /api/attempts - Received attempt data:', {
+      hasQuizId: !!body.quizId,
+      hasStudentId: !!body.studentId,
+      hasCourseId: !!body.courseId,
+      status: body.status,
+      score: body.score,
+      maxScore: body.maxScore,
+    });
+    
     const attempt = await FirebaseAttemptService.create(body);
+    
+    console.log('[API] POST /api/attempts - Attempt created successfully:', attempt.id);
+    
     return NextResponse.json(attempt, { status: 201 });
   } catch (error: any) {
     console.error('[API] POST /api/attempts error:', error);
+    console.error('[API] POST /api/attempts - Error details:', {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack?.substring(0, 200),
+    });
     return NextResponse.json(
-      { error: 'Failed to create attempt', message: error.message || 'Unknown error' },
+      { 
+        error: 'Failed to create attempt',
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN',
+      },
       { status: 500 }
     );
   }
