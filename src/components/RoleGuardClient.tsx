@@ -14,6 +14,9 @@ export const RoleGuardClient: React.FC<{
   const redirectingRef = useRef(false);
 
   React.useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RoleGuardClient.tsx:16',message:'RoleGuardClient useEffect',data:{loading,hasFirebaseUser:!!firebaseUser,hasProfile:!!profile,profileRole:profile?.role||null,onboardingRequired,requiredRole,pathname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     if (loading) {
       redirectingRef.current = false;
       return;
@@ -27,6 +30,9 @@ export const RoleGuardClient: React.FC<{
     if (!firebaseUser) {
       // Only redirect to login if not already there
       if (pathname !== "/login") {
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RoleGuardClient.tsx:31',message:'RoleGuardClient redirecting to /login (no user)',data:{pathname,requiredRole},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         redirectingRef.current = true;
         router.replace("/login");
       }

@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Proxy Firebase auth handler to avoid third-party cookie issues with redirect auth
+  async rewrites() {
+    return [
+      {
+        source: '/__/auth/:path*',
+        destination: 'https://coursellm-afe61.firebaseapp.com/__/auth/:path*',
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

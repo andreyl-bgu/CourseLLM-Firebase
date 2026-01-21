@@ -8,16 +8,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { LogIn, Loader2, Mail } from "lucide-react"
+import { Loader2, Mail } from "lucide-react"
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithEmail, loading, firebaseUser, refreshProfile, profile } = useAuth()
+  const { signInWithEmail, loading, firebaseUser, refreshProfile, profile } = useAuth()
   const [navigating, setNavigating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isEmailLogin, setIsEmailLogin] = useState(false)
   const router = useRouter()
+
+  // #region agent log
+  React.useEffect(() => {
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login/page.tsx:mount',message:'LoginPage mounted/rendered',data:{loading,hasFirebaseUser:!!firebaseUser,firebaseUserEmail:firebaseUser?.email||null,hasProfile:!!profile,profileRole:profile?.role||null,href:typeof window!=='undefined'?window.location.href:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  }, [loading, firebaseUser, profile]);
+  // #endregion
 
   const gotoAfterAuth = async () => {
     // Fast path: if profile already in memory use it
@@ -34,31 +39,6 @@ export default function LoginPage() {
 
     // Fallback: optimistic default. RoleGuard will correct if needed.
     return router.replace("/student")
-  }
-
-  const handleGoogle = async () => {
-    try {
-      setNavigating(true)
-      setError(null)
-      const result = await signInWithGoogle()
-      
-      // If signInWithGoogle returns null, it means redirect was used (page will navigate away)
-      if (result === null) {
-        // User is being redirected - don't clear navigating state
-        return
-      }
-      
-      // If this is the user's first sign-in, send them to onboarding immediately.
-      const user = auth.currentUser
-      const isNew = !!(user && user.metadata && user.metadata.creationTime === user.metadata.lastSignInTime)
-      if (isNew) return router.replace("/onboarding")
-
-      await gotoAfterAuth()
-    } catch (err: any) {
-      setNavigating(false)
-      console.error("Sign-in error:", err)
-      handleError(err)
-    }
   }
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -100,6 +80,8 @@ export default function LoginPage() {
       setError("Sign-in was cancelled. Please try again.")
     } else if (errorCode === "auth/unauthorized-domain") {
       setError("This domain is not authorized. Please contact support.")
+    } else if (errorCode === "auth/web-storage-unsupported") {
+      setError("Browser storage is blocked. Please use a normal window and allow site data for Google sign-in.")
     } else if (errorCode === "auth/invalid-credential" || errorCode === "auth/wrong-password" || errorCode === "auth/user-not-found") {
       setError("Invalid email or password. Please try again.")
     } else if (errorCode === "auth/invalid-email") {
@@ -118,75 +100,38 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle>Sign in to CourseLLM</CardTitle>
             <CardDescription>
-              {isEmailLogin 
-                ? "Enter your email and password to sign in."
-                : "Sign in with Google or email to continue."
-              }
+              Enter your email and password to sign in.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col space-y-4">
-              {isEmailLogin ? (
-                <form onSubmit={handleEmailLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading || navigating}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading || navigating}
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading || navigating} size="lg">
-                    <Mail className="mr-2 h-4 w-4" /> Sign in with Email
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    className="w-full" 
-                    onClick={() => setIsEmailLogin(false)}
+              <form onSubmit={handleEmailLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     disabled={loading || navigating}
-                  >
-                    Back to other options
-                  </Button>
-                </form>
-              ) : (
-                <>
-                  <Button onClick={handleGoogle} disabled={loading || navigating} size="lg" className="w-full">
-                    <LogIn className="mr-2 h-4 w-4" /> Sign in with Google
-                  </Button>
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background px-2 text-muted-foreground">Or</span>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsEmailLogin(true)} 
-                    disabled={loading || navigating} 
-                    size="lg"
-                    className="w-full"
-                  >
-                    <Mail className="mr-2 h-4 w-4" /> Sign in with Email
-                  </Button>
-                </>
-              )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading || navigating}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading || navigating} size="lg">
+                  <Mail className="mr-2 h-4 w-4" /> Sign in with Email
+                </Button>
+              </form>
               
               {error && (
                 <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
