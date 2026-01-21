@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 
 function OnboardingContent() {
@@ -21,13 +20,7 @@ function OnboardingContent() {
   const router = useRouter()
 
   React.useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:23',message:'Onboarding useEffect triggered',data:{hasFirebaseUser:!!firebaseUser,uid:firebaseUser?.uid||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     if (!firebaseUser) {
-      // #region agent log
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:25',message:'Redirecting to login from onboarding (no user)',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       router.replace("/login")
     }
   }, [firebaseUser, router])
@@ -47,7 +40,6 @@ function OnboardingContent() {
   const handleSave = async () => {
     if (!firebaseUser) return
     if (!role || !department) {
-      // lightweight client validation
       alert("Please choose a role and enter your department.")
       return
     }
@@ -72,25 +64,13 @@ function OnboardingContent() {
         { merge: true }
       )
 
-      // #region agent log
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:67',message:'Profile saved, calling refreshProfile',data:{uid:firebaseUser.uid,role,department,coursesCount:courses.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       try {
-        const refreshed = await refreshProfile()
-        // #region agent log
-        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:70',message:'refreshProfile completed',data:{uid:firebaseUser.uid,refreshed:!!refreshed,refreshedRole:refreshed?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
+        await refreshProfile()
       } catch (e) {
         console.warn("refreshProfile failed after onboarding save:", e)
-        // #region agent log
-        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:73',message:'refreshProfile failed',data:{error:e instanceof Error?e.message:'Unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
       }
 
       const targetPath = role === "student" ? "/student" : "/teacher"
-      // #region agent log
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:78',message:'Navigating to role dashboard',data:{to:targetPath,role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       router.replace(targetPath)
     } catch (err) {
       console.error("Failed saving profile:", err)

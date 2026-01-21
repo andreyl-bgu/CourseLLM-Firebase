@@ -22,35 +22,11 @@ export const QuizApiClient = {
    * Get all quizzes
    */
   async getAll(): Promise<Quiz[]> {
-    // #region agent log
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:24',message:'QuizApiClient.getAll called',data:{apiBase:API_BASE,url:`${API_BASE}/api/quizzes`},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    }
-    // #endregion
     const res = await fetch(`${API_BASE}/api/quizzes`);
-    // #region agent log
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test' && res) {
-      const ok = res.ok;
-      const status = res.status;
-      const statusText = res.statusText;
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:30',message:'Fetch response received',data:{ok,status,statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    }
-    // #endregion
     if (!res.ok) {
-      // #region agent log
-      if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
-        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:30',message:'Fetch failed',data:{status:res.status,statusText:res.statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      }
-      // #endregion
       throw new Error(`Failed to fetch quizzes: ${res.statusText}`);
     }
-    const data = await res.json();
-    // #region agent log
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
-      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'quiz-api-client.ts:34',message:'QuizApiClient.getAll result',data:{count:Array.isArray(data)?data.length:0,isEmpty:!Array.isArray(data)||data.length===0,isArray:Array.isArray(data)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    }
-    // #endregion
-    return data;
+    return res.json();
   },
 
   /**
@@ -99,7 +75,6 @@ export const QuizApiClient = {
       body: JSON.stringify(quiz),
     });
     if (!res.ok) {
-      // Try to get error message from response
       let errorMessage = res.statusText;
       try {
         const errorData = await res.json();
@@ -233,4 +208,3 @@ export const QuizApiClient = {
     }
   },
 };
-
