@@ -14,17 +14,28 @@ export const RoleGuardClient: React.FC<{
   const redirectingRef = useRef(false);
 
   React.useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RoleGuardClient.tsx:16',message:'RoleGuardClient useEffect triggered',data:{loading,hasFirebaseUser:!!firebaseUser,hasProfile:!!profile,profileRole:profile?.role,onboardingRequired,requiredRole,pathname,redirectingRef:redirectingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     if (loading) {
       redirectingRef.current = false;
       return;
     }
 
     // Prevent rapid successive redirects
-    if (redirectingRef.current) return;
+    if (redirectingRef.current) {
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RoleGuardClient.tsx:23',message:'Redirect already in progress, skipping',data:{pathname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
 
     if (!firebaseUser) {
       // Only redirect to login if not already there
       if (pathname !== "/login") {
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RoleGuardClient.tsx:28',message:'Redirecting to login (no user)',data:{from:pathname,to:'/login'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         redirectingRef.current = true;
         router.replace("/login");
       }
@@ -34,6 +45,9 @@ export const RoleGuardClient: React.FC<{
     if (onboardingRequired) {
       // Only redirect to onboarding if not already there
       if (pathname !== "/onboarding") {
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'RoleGuardClient.tsx:36',message:'Redirecting to onboarding',data:{from:pathname,to:'/onboarding',onboardingRequired},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         redirectingRef.current = true;
         router.replace("/onboarding");
       }

@@ -119,10 +119,16 @@ export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   async function loadProfile(uid: string): Promise<Profile | null> {
+    // #region agent log
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:121',message:'loadProfile called',data:{uid},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     const docRef = doc(db, "users", uid);
     try {
       const snap = await getDoc(docRef);
       if (!snap.exists()) {
+        // #region agent log
+        fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:126',message:'Profile doc does not exist',data:{uid},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         setProfile(null);
         setOnboardingRequired(true);
         return null;
@@ -131,8 +137,14 @@ export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ ch
       const data = snap.data() as Profile;
       // Determine completeness
       const isComplete = isProfileComplete(data);
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:133',message:'Profile loaded, checking completeness',data:{uid,hasRole:!!data.role,role:data.role,hasDepartment:!!data.department,department:data.department,hasCourses:Array.isArray(data.courses)&&data.courses.length>0,coursesCount:Array.isArray(data.courses)?data.courses.length:0,isComplete,onboardingRequired:!isComplete},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       setProfile({ ...data } as Profile);
       setOnboardingRequired(!isComplete);
+      // #region agent log
+      fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:136',message:'Profile state updated',data:{uid,onboardingRequired:!isComplete,profileSet:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       return data;
     } catch (err: any) {
       // Firestore offline error (client is offline) or other transient network errors.
@@ -160,10 +172,16 @@ export const AuthProviderClient: React.FC<{ children: React.ReactNode }> = ({ ch
   }
 
   async function refreshProfile(): Promise<Profile | null> {
+    // #region agent log
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:162',message:'refreshProfile called',data:{hasFirebaseUser:!!firebaseUser,uid:firebaseUser?.uid||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     // Try to use the current firebaseUser state, fallback to auth.currentUser if needed
     const current = firebaseUser || (auth && (auth.currentUser as FirebaseUser | null));
     if (!current) return null;
     const p = await loadProfile(current.uid);
+    // #region agent log
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProviderClient.tsx:167',message:'refreshProfile completed',data:{uid:current.uid,profileReturned:!!p,hasRole:!!p?.role,onboardingRequired},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     return p || null;
   }
 
