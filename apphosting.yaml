@@ -5,3 +5,22 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+
+  # Environment variables for the application
+  env:
+    - variable: GOOGLE_API_KEY
+      secret: google-api-key
+    - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+      value: AIzaSyCtArgwqQ8rA2Hg2yFI5uCzm8jB7S7yJzw
+    - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+      value: coursellm-afe61.firebaseapp.com
+    - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+      value: coursellm-afe61
+    - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+      value: coursellm-afe61.firebasestorage.app
+    - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+      value: "478932947274"
+    - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+      value: 1:478932947274:web:9f643c08d347659738b1b3
+    - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+      value: G-S1ZZ71PMGZ

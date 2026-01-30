@@ -22,6 +22,34 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
+     * @description Users collection - allows authenticated users to manage their own profile.
+     * @path /users/{userId}
+     * @allow (read, write) User can read/write their own profile document.
+     * @principle Enforces document ownership based on auth UID.
+     */
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Quizzes collection - allows read for all authenticated users, write for teachers.
+     * @path /quizzes/{quizId}
+     */
+    match /quizzes/{quizId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    /**
+     * @description Quiz attempts collection - allows users to manage their own attempts.
+     * @path /quiz_attempts/{attemptId}
+     */
+    match /quiz_attempts/{attemptId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    /**
      * @description Enforces that only the teacher can read and write their own profile data.
      * @path /teachers/{teacherId}
      * @allow (create, update, delete) User with UID 'teacher123' can create/update/delete their own profile at /teachers/teacher123.

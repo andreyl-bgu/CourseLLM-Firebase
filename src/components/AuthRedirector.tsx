@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from './AuthProviderClient';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -8,49 +8,28 @@ export default function AuthRedirector() {
   const { firebaseUser, profile, loading, onboardingRequired } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const redirectingRef = useRef(false);
 
   useEffect(() => {
-    if (loading) {
-      redirectingRef.current = false;
-      return;
-    }
-
-    // Prevent rapid successive redirects
-    if (redirectingRef.current) return;
+    if (loading) return;
 
     // If not logged in, do nothing here
-    if (!firebaseUser) {
-      redirectingRef.current = false;
-      return;
-    }
+    if (!firebaseUser) return;
 
     // If onboarding required, navigate to onboarding when on neutral pages (root/login)
     if (onboardingRequired) {
       if (pathname === '/' || pathname === '/login' || pathname === '') {
-        // Only redirect if not already on onboarding
-        if (pathname !== '/onboarding') {
-          redirectingRef.current = true;
-          router.replace('/onboarding');
-        }
+        router.replace('/onboarding');
       }
       return;
     }
 
-    // Only redirect when we have definitive profile data (not during network errors)
-    // If profile is null but onboardingRequired is false, this might be a network error
-    // In that case, don't redirect - let RoleGuardClient handle it
+    // If profile exists and we're on neutral pages, go to dashboard
     if (profile && profile.role) {
       const target = profile.role === 'teacher' ? '/teacher' : '/student';
-      // Only redirect from neutral pages and only if not already on target
-      if ((pathname === '/' || pathname === '/login' || pathname === '') && pathname !== target) {
-        redirectingRef.current = true;
+      if (pathname === '/' || pathname === '/login' || pathname === '') {
         router.replace(target);
       }
     }
-
-    // Reset redirect flag
-    redirectingRef.current = false;
   }, [loading, firebaseUser, profile, onboardingRequired, pathname, router]);
 
   return null;

@@ -1,6 +1,8 @@
-import { initializeApp } from "firebase/app";
+// Firebase configuration - combined auth and quiz features
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -9,11 +11,50 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-const app = initializeApp(firebaseConfig);
+// #region agent log
+if (typeof window !== 'undefined') {
+  const configCheck = {
+    hasApiKey: !!firebaseConfig.apiKey,
+    hasAuthDomain: !!firebaseConfig.authDomain,
+    hasProjectId: !!firebaseConfig.projectId,
+    hasStorageBucket: !!firebaseConfig.storageBucket,
+    hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+    hasAppId: !!firebaseConfig.appId,
+    authDomain: firebaseConfig.authDomain || 'MISSING',
+    projectId: firebaseConfig.projectId || 'MISSING',
+    origin: window.location.origin,
+    hostname: window.location.hostname,
+  };
+  fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:18',message:'Firebase config check',data:configCheck,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+}
+// #endregion
 
+// Initialize Firebase (avoid reinitializing if already initialized)
+let app;
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:25',message:'Firebase initialized successfully',data:{appName:app.name,appsCount:getApps().length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  }
+  // #endregion
+} catch (initError: any) {
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7247/ingest/62f437c0-49e0-40ce-94ef-e1908fd13650',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'firebase.ts:30',message:'Firebase initialization failed',data:{error:initError?.message||'Unknown',code:initError?.code||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  }
+  // #endregion
+  throw initError;
+}
+
+// Initialize Auth
 export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+
+// Initialize Firestore
 export const db = getFirestore(app);
 
 // Enable offline persistence so reads can be served from cache when offline.
@@ -29,6 +70,8 @@ try {
   console.warn("Persistence enable failed:", e);
 }
 
-export const googleProvider = new GoogleAuthProvider();
+// Initialize Analytics (only in browser)
+const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
+export { app, analytics };
 export default app;

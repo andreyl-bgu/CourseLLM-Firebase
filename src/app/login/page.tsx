@@ -13,33 +13,13 @@ export default function LoginPage() {
   const [navigating, setNavigating] = useState(false)
   const router = useRouter()
 
-  const gotoAfterAuth = async () => {
-    // Fast path: if profile already in memory use it
-    if (profile && profile.role) return router.replace(profile.role === "teacher" ? "/teacher" : "/student")
-
-    // Otherwise try to refresh but don't wait long — race against a short timeout
-    const refreshPromise = refreshProfile()
-    const res = await Promise.race([
-      refreshPromise,
-      new Promise<null>((r) => setTimeout(() => r(null), 700)),
-    ])
-
-    if (res && (res as any).role) return router.replace((res as any).role === "teacher" ? "/teacher" : "/student")
-
-    // Fallback: optimistic default. RoleGuard will correct if needed.
-    return router.replace("/student")
-  }
-
   const handleGoogle = async () => {
     try {
       setNavigating(true)
       await signInWithGoogle()
-      // If this is the user's first sign-in, send them to onboarding immediately.
-      const user = auth.currentUser
-      const isNew = !!(user && user.metadata && user.metadata.creationTime === user.metadata.lastSignInTime)
-      if (isNew) return router.replace("/onboarding")
-
-      await gotoAfterAuth()
+      // Always go to onboarding to allow role selection (even for returning users)
+      // Users can update their role if needed
+      router.replace("/onboarding")
     } catch (err) {
       setNavigating(false)
       console.error(err)

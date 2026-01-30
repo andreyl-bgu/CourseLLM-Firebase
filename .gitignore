@@ -14,6 +14,11 @@ package-lock.json
 # testing
 /coverage
 
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
 # next.js
 /.next/
 /out/
@@ -49,8 +54,13 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+.firebase/
+service-account.json
 
 # dataconnect
 dataconnect/.dataconnect
 src/dataconnect-generated/
 src/dataconnect-admin-generated/
+
+# IDE
+/.idea/
